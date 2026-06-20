@@ -1,0 +1,67 @@
+{
+  "name": "gondurasmc-launcher",
+  "version": "1.0.0",
+  "description": "GondurasMC launcher: drasl auth, modpack sync, 3D skin, auto-update",
+  "main": "src/main/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "release": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "minecraft-launcher-core": "^3.18.2",
+    "node-fetch": "^2.7.0",
+    "skinview3d": "^3.4.2"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.gondurasmc.launcher",
+    "productName": "GondurasMC",
+    "icon": "assets/icon.png",
+    "files": [
+      "src/**/*",
+      "config.js",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      "GondurasMC.mrpack",
+      "vendor/authlib-injector.jar"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zpx9ybf6hg-lang",
+        "repo": "gondurasmc-launcher",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "GondurasMC-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.games",
+      "identity": null,
+      "artifactName": "GondurasMC.${ext}"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game",
+      "artifactName": "GondurasMC.${ext}"
+    }
+  }
+}

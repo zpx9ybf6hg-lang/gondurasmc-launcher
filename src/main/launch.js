@@ -1,0 +1,191 @@
+// Запуск Minecraft + NeoForge.
+// MCLC не умеет правильно собирать модульный запуск NeoForge (теряет -p,
+// --add-opens, --add-modules), поэтому команду java строим сами из version-json.
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
+
+function osName() {
+  if (process.platform === "win32") return "windows";
+  if (process.platform === "darwin") return "osx";
+  return "linux";
+}
+
+// Путь к authlib-injector.jar (dev: vendor/, билд: resources/).
+function authlibInjectorPath() {
+  const packed = path.join(process.resourcesPath || "", "authlib-injector.jar");
+  if (process.resourcesPath && fs.existsSync(packed)) return packed;
+  return path.join(__dirname, "..", "..", "vendor", "authlib-injector.jar");
+}
+
+// Проверка rules (os/arch) у аргументов и библиотек.
+function rulesAllow(rules) {
+  if (!rules) return true;
+  let allowed = false;
+  for (const r of rules) {
+    let match = true;
+    // features (demo, кастомное разрешение, quickPlay) не включаем.
+    if (r.features) match = false;
+    if (r.os) {
+      if (r.os.name && r.os.name !== osName()) match = false;
+      if (r.os.arch && r.os.arch !== process.arch && !(r.os.arch === "x86" && process.arch === "ia32")) match = false;
+    }
+    if (match) allowed = r.action === "allow";
+  }
+  return allowed;
+}
+
+// maven name "g:a:v[:classifier]" -> относительный путь к jar.
+function mavenToPath(name) {
+  const [coords, ...rest] = name.split("@"); // отбросить расширение @jar
+  const parts = coords.split(":");
+  const [group, artifact, version] = parts;
+  const classifier = parts[3];
+  const file = `${artifact}-${version}${classifier ? "-" + classifier : ""}.jar`;
+  return path.join(...group.split("."), artifact, version, file);
+}
+
+function mavenKey(name) {
+  const parts = name.split("@")[0].split(":");
+  return `${parts[0]}:${parts[1]}${parts[3] ? ":" + parts[3] : ""}`;
+}
+
+function libPath(libDir, lib) {
+  if (lib.downloads && lib.downloads.artifact && lib.downloads.artifact.path) {
+    return path.join(libDir, lib.downloads.artifact.path);
+  }
+  return path.join(libDir, mavenToPath(lib.name));
+}
+
+// Собрать список библиотек из json (с учётом rules), neoforge переопределяет ваниль.
+function collectLibraries(libDir, vanilla, neoforge) {
+  const map = new Map();
+  const add = (libs) => {
+    for (const lib of libs || []) {
+      if (!rulesAllow(lib.rules)) continue;
+      if (!lib.name) continue;
+      map.set(mavenKey(lib.name), libPath(libDir, lib));
+    }
+  };
+  add(vanilla.libraries);
+  add(neoforge.libraries); // переопределяет совпадающие
+  return [...map.values()];
+}
+
+// Развернуть аргумент(ы) с rules и подстановкой плейсхолдеров.
+function expandArgs(args, vars) {
+  const out = [];
+  const sub = (s) =>
+    s.replace(/\$\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `\${${k}}`));
+  for (const a of args || []) {
+    if (typeof a === "string") {
+      out.push(sub(a));
+    } else if (a && a.value && rulesAllow(a.rules)) {
+      const vals = Array.isArray(a.value) ? a.value : [a.value];
+      for (const v of vals) out.push(sub(v));
+    }
+  }
+  return out;
+}
+
+async function launchGame({ cfg, gameDir, auth, neoforgeId, onEvent }) {
+  const libDir = path.join(gameDir, "libraries");
+  const vanillaVer = cfg.minecraft.version; // 1.21.1
+  const vanilla = JSON.parse(
+    fs.readFileSync(path.join(gameDir, "versions", vanillaVer, `${vanillaVer}.json`), "utf8")
+  );
+  const neoforge = JSON.parse(
+    fs.readFileSync(path.join(gameDir, "versions", neoforgeId, `${neoforgeId}.json`), "utf8")
+  );
+
+  const sep = process.platform === "win32" ? ";" : ":";
+  const nativesDir = path.join(gameDir, "natives");
+  fs.mkdirSync(nativesDir, { recursive: true });
+
+  // Индекс ассетов должен лежать под именем assetIndex.id (напр. 17.json).
+  // Установщик/MCLC иногда сохраняет его под именем версии — копируем при необходимости.
+  const assetId = vanilla.assetIndex.id;
+  const indexesDir = path.join(gameDir, "assets", "indexes");
+  const wantIndex = path.join(indexesDir, `${assetId}.json`);
+  if (!fs.existsSync(wantIndex) && fs.existsSync(indexesDir)) {
+    const existing = fs.readdirSync(indexesDir).find((f) => f.endsWith(".json"));
+    if (existing) fs.copyFileSync(path.join(indexesDir, existing), wantIndex);
+  }
+
+  // Клиентский jar (ванильный) — он один на classpath, остальное игнорит securejarhandler.
+  const clientJar = path.join(gameDir, "versions", vanillaVer, `${vanillaVer}.jar`);
+
+  const vars = {
+    library_directory: libDir,
+    classpath_separator: sep,
+    version_name: vanillaVer,
+    natives_directory: nativesDir,
+    game_directory: gameDir,
+    assets_root: path.join(gameDir, "assets"),
+    assets_index_name: vanilla.assetIndex.id,
+    auth_player_name: auth.name,
+    auth_uuid: auth.uuid,
+    auth_access_token: auth.access_token,
+    clientid: "0",
+    auth_xuid: "0",
+    user_type: "msa",
+    version_type: "release",
+    launcher_name: "GondurasMC",
+    launcher_version: "1.0"
+  };
+
+  // Модульный путь NeoForge (из его jvm-аргументов) — эти jar НЕ кладём в classpath.
+  const jvmNeo = expandArgs(neoforge.arguments.jvm, vars);
+  const modulePathSet = new Set();
+  const pIndex = jvmNeo.indexOf("-p");
+  if (pIndex !== -1 && jvmNeo[pIndex + 1]) {
+    jvmNeo[pIndex + 1].split(sep).forEach((p) => modulePathSet.add(path.resolve(p)));
+  }
+
+  // Classpath = все библиотеки, кроме модульных, + клиентский jar.
+  const libs = collectLibraries(libDir, vanilla, neoforge).filter(
+    (p) => !modulePathSet.has(path.resolve(p))
+  );
+  const classpath = [...libs, clientJar].join(sep);
+  vars.classpath = classpath;
+
+  // Сборка финальной команды.
+  const jvmVanilla = expandArgs(vanilla.arguments.jvm, vars);
+  const memory = [`-Xmx${cfg.memory.max}M`, `-Xms${cfg.memory.min}M`];
+  const gameArgs = [
+    ...expandArgs(vanilla.arguments.game, vars),
+    ...expandArgs(neoforge.arguments.game, vars)
+  ];
+
+  // authlib-injector: подключает аккаунты/скины drasl (вход и сессии).
+  const authAgent =
+    cfg.authMode === "drasl" && cfg.authBase
+      ? [`-javaagent:${authlibInjectorPath()}=${cfg.authBase}`]
+      : [];
+
+  const args = [
+    ...memory,
+    ...authAgent,
+    ...jvmVanilla, // содержит -cp ${classpath}, -Djava.library.path и пр.
+    ...jvmNeo, // содержит -p, --add-opens, --add-modules, --add-exports
+    neoforge.mainClass,
+    ...gameArgs
+  ];
+
+  const javaBin = cfg.javaPath || "java";
+  onEvent && onEvent({ type: "debug", text: `Команда: ${javaBin} ${args.join(" ")}` });
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(javaBin, args, { cwd: gameDir });
+    onEvent && onEvent({ type: "started" });
+    child.stdout.on("data", (d) => onEvent && onEvent({ type: "data", text: String(d) }));
+    child.stderr.on("data", (d) => onEvent && onEvent({ type: "data", text: String(d) }));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      onEvent && onEvent({ type: "close", code });
+      resolve(code);
+    });
+  });
+}
+
+module.exports = { launchGame };

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; connect-src 'self' https:; style-src 'self' 'unsafe-inline';" />
+  <link rel="stylesheet" href="style.css" />
+  <title>GondurasMC</title>
+</head>
+<body>
+
+<!-- ЭКРАН ВХОДА -->
+<section id="login-view" class="login">
+  <div class="login-card">
+    <img class="login-logo" src="logo.png" alt="GondurasMC" />
+    <h2>Вход в игру</h2>
+    <p class="muted">Имя игрока и пароль с сайта GondurasMC</p>
+    <input id="username" type="text" placeholder="Имя игрока (ник в игре)" autocomplete="username" />
+    <input id="password" type="password" placeholder="Пароль" autocomplete="current-password" />
+    <button id="login-btn" class="btn primary full">Войти</button>
+    <p id="login-error" class="error"></p>
+    <button id="register-btn" class="linkbtn">Нет аккаунта? Регистрация на сайте →</button>
+  </div>
+</section>
+
+<!-- ОСНОВНОЙ ЭКРАН -->
+<section id="app-view" class="app hidden">
+  <!-- Сайдбар -->
+  <aside class="sidebar">
+    <img class="side-logo" src="logo.png" alt="GondurasMC" />
+    <nav class="side-nav" aria-label="Навигация">
+      <button class="nav-item active" data-panel="home"><span class="ic">🏠</span>Главная</button>
+      <button class="nav-item" data-panel="settings"><span class="ic">⚙️</span>Настройки</button>
+      <button class="nav-item" data-panel="news"><span class="ic">📰</span>Новости</button>
+    </nav>
+  </aside>
+
+  <!-- Центр -->
+  <div class="center">
+    <!-- Панель: Главная -->
+    <div class="panel" id="panel-home">
+      <h1 class="panel-title">ВЫБЕРИ СЕРВЕР</h1>
+      <div class="server-card selected">
+        <div class="srv-icon"><img src="logo.png" alt="" /></div>
+        <div class="srv-info">
+          <div class="srv-name" id="srv-name">GONDURAS MC</div>
+          <div class="srv-sub"><span id="srv-status" class="srv-dot off">Проверка…</span>
+            <span id="srv-ver">1.21.1 · NeoForge</span></div>
+        </div>
+        <div class="srv-players" id="srv-players">—</div>
+      </div>
+
+      <div class="play-row">
+        <button id="play-btn" class="btn play">ИГРАТЬ <span>→</span></button>
+        <button id="gear-btn" class="btn icon" title="Настройки">⚙️</button>
+      </div>
+
+      <div class="progress-wrap"><div id="progress-bar"></div></div>
+      <pre id="status-log"></pre>
+    </div>
+
+    <!-- Панель: Настройки -->
+    <div class="panel hidden" id="panel-settings">
+      <h1 class="panel-title">НАСТРОЙКИ</h1>
+
+      <h3 class="set-h">Память (RAM)</h3>
+      <div class="ram-row">
+        <input type="range" id="ram-slider" min="2048" max="16384" step="512" />
+        <span id="ram-val" class="ram-val">6 ГБ</span>
+      </div>
+      <p class="hint">Сколько ОЗУ выделить Minecraft. Для Create-сборки — 6+ ГБ.</p>
+
+      <h3 class="set-h">Папка с файлами игры</h3>
+      <div class="kv"><span>Путь</span><b id="set-dir" class="path">—</b></div>
+      <div class="btn-row">
+        <button id="open-folder" class="btn ghost">Открыть папку</button>
+        <button id="choose-folder" class="btn ghost">Выбрать другую</button>
+      </div>
+
+      <h3 class="set-h">Аккаунт и сервер</h3>
+      <div class="kv"><span>Версия</span><b id="set-ver"></b></div>
+      <div class="kv"><span>Аккаунт</span><b id="set-acc"></b></div>
+      <div class="kv"><span>Сервер</span><b id="set-srv"></b></div>
+      <div class="kv"><span>Сайт</span><a id="set-site" class="linkbtn">профиль / сменить скин</a></div>
+      <button id="logout-btn" class="btn ghost">Выйти из аккаунта</button>
+    </div>
+
+    <!-- Панель: Новости -->
+    <div class="panel hidden" id="panel-news">
+      <h1 class="panel-title">НОВОСТИ</h1>
+      <div class="news-item"><b>Запуск лаунчера</b><p>Регистрация, скины и единые аккаунты теперь работают через сайт GondurasMC.</p></div>
+    </div>
+  </div>
+
+  <!-- Hero справа: 3D-скин игрока на фоне -->
+  <aside class="hero" aria-label="Скин игрока">
+    <canvas id="skin-canvas"></canvas>
+    <img class="hero-logo" id="hero-fallback" src="logo.png" alt="" />
+    <div class="hero-widget">
+      <div class="hw-player">
+        <span class="dot"></span>
+        <div>
+          <div class="hw-name" id="hw-name">—</div>
+          <div class="hw-online">В сети</div>
+        </div>
+      </div>
+      <div class="hw-sep"></div>
+      <div class="hw-row"><span class="hw-val" id="hw-ver">1.21.1</span><span class="hw-lbl">Версия</span></div>
+      <div class="hw-row"><span class="hw-val">NeoForge</span><span class="hw-lbl">Загрузчик</span></div>
+    </div>
+  </aside>
+
+  <!-- Плашки снизу -->
+  <div class="badges">
+    <div class="badge"><span class="b-ic">⚡</span><div><b>Быстро</b><p>Оптимизированная сборка</p></div></div>
+    <div class="badge"><span class="b-ic">🛡️</span><div><b>Надёжно</b><p>Защита от угона ника</p></div></div>
+    <div class="badge"><span class="b-ic">👥</span><div><b>Для всех</b><p>Единые аккаунты и скины</p></div></div>
+  </div>
+</section>
+
+<script src="skinview3d.js"></script>
+<script src="renderer.js"></script>
+</body>
+</html>

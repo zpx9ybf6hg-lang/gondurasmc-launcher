@@ -1,0 +1,29 @@
+app = "gondurasmc-auth"
+primary_region = "arn"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Постоянный том: SQLite-база, файлы скинов и ключи подписи drasl.
+[[mounts]]
+  source = "drasl_data"
+  destination = "/var/lib/drasl"
+
+[http_service]
+  internal_port = 25585
+  force_https = true
+  # Auth-сервер должен быть всегда онлайн — не усыплять.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

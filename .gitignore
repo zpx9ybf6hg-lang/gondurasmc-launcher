@@ -1,0 +1,22 @@
+# зависимости
+node_modules/
+**/node_modules/
+
+# сборки лаунчера
+dist/
+out/
+*.dmg
+*.exe
+*.AppImage
+*.blockmap
+
+# серверная папка (генерится build-server.js)
+server/
+
+# временное / локальное
+.DS_Store
+*.log
+.pack_inspect/
+.pk/
+.t2.js
+.tl.js

@@ -1,0 +1,18 @@
+# Конфиг drasl. После подключения своего домена поменяй Domain/BaseURL
+# на auth.твойдомен и передеплой (fly deploy).
+Domain = "gondurasmc-auth.fly.dev"
+BaseURL = "https://gondurasmc-auth.fly.dev"
+
+# Этот ник станет админом. Зарегистрируй его на сайте drasl после первого деплоя.
+DefaultAdmins = ["lolercasepig"]
+
+# Оффлайн-алгоритм UUID — чтобы существующие игроки сохранили UUID и вещи.
+PlayerUUIDGeneration = "offline"
+
+[CreateNewPlayer]
+AllowChoosingUUID = true
+
+# Открытая регистрация (любой может создать аккаунт на сайте).
+[RegistrationNewPlayer]
+Allow = true
+RequireInvite = false

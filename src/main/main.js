@@ -1,0 +1,268 @@
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const fetch = require("node-fetch");
+const { autoUpdater } = require("electron-updater");
+const cfg = require("../../config");
+const auth = require("./auth");
+const { installModpack, enforceMods } = require("./modpack");
+const { ensureNeoForge } = require("./neoforge");
+const { launchGame } = require("./launch");
+const { writeServersDat } = require("./serverlist");
+const { pingServer } = require("./ping");
+
+// Корень данных лаунчера по ОС.
+function dataRoot() {
+  const base =
+    process.platform === "win32"
+      ? path.join(os.homedir(), "AppData", "Roaming")
+      : process.platform === "darwin"
+      ? path.join(os.homedir(), "Library", "Application Support")
+      : path.join(os.homedir(), ".local", "share");
+  const dir = path.join(base, "GondurasMC");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+// Настройки лаунчера (RAM, своя папка игры).
+const settingsFile = () => path.join(dataRoot(), "settings.json");
+function loadSettings() {
+  try { return JSON.parse(fs.readFileSync(settingsFile(), "utf8")); } catch { return {}; }
+}
+function saveSettings(s) { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)); }
+
+const gameDir = () => {
+  const s = loadSettings();
+  const d = s.gameDir || path.join(dataRoot(), "instance");
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+};
+
+// Память: из настроек, иначе из config; ограничиваем разумным максимумом.
+function maxRam() {
+  const s = loadSettings();
+  return s.maxRam || cfg.memory.max;
+}
+
+function modpackPath() {
+  const packed = path.join(process.resourcesPath || "", cfg.modpackFile);
+  if (process.resourcesPath && fs.existsSync(packed)) return packed;
+  return path.join(__dirname, "..", "..", cfg.modpackFile);
+}
+
+// Сессия (полный объект авторизации drasl).
+const sessionFile = () => path.join(dataRoot(), "session.json");
+function saveSession(a) { fs.writeFileSync(sessionFile(), JSON.stringify(a)); }
+function loadSession() {
+  try { return JSON.parse(fs.readFileSync(sessionFile(), "utf8")); } catch { return null; }
+}
+function clearSession() { try { fs.unlinkSync(sessionFile()); } catch {} }
+
+const installedFile = () =>
+  path.join(dataRoot(), `installed-${cfg.minecraft.loaderVersion}.json`);
+function loadInstalled() {
+  try { return JSON.parse(fs.readFileSync(installedFile(), "utf8")); } catch { return null; }
+}
+function saveInstalled(info) { fs.writeFileSync(installedFile(), JSON.stringify(info, null, 2)); }
+
+async function downloadFile(url, dest) {
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+}
+
+// Проверка версии модпака на сайте (единое обновление для всех).
+async function remoteModpack() {
+  try {
+    const r = await fetch(`${cfg.websiteUrl}/modpack/version.json`);
+    if (!r.ok) return null;
+    return await r.json(); // { version, url }
+  } catch { return null; }
+}
+
+let win;
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1100,
+    height: 700,
+    resizable: false,
+    title: cfg.serverName,
+    backgroundColor: "#0b1422",
+    icon: path.join(__dirname, "..", "..", "assets", "logo.png"),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  win.setMenuBarVisibility(false);
+  win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  // Автообновление лаунчера. На macOS без подписи авто-применение недоступно —
+  // проверяем только на Windows/Linux (на Mac обновление = заново скачать с сайта).
+  if (process.platform !== "darwin") {
+    autoUpdater.autoDownload = true;
+    autoUpdater.on("update-downloaded", () => {
+      if (win) win.webContents.send("status", { stage: "app-update", text: "Доступно обновление лаунчера — применится при перезапуске." });
+    });
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+
+function profileOf(a) {
+  return a ? { name: a.name, uuid: a.uuid } : null;
+}
+
+// ── IPC ──────────────────────────────────────────────────────
+ipcMain.handle("get-config", () => ({
+  serverName: cfg.serverName,
+  websiteUrl: cfg.websiteUrl,
+  serverHost: cfg.serverHost,
+  serverPort: cfg.serverPort,
+  version: cfg.minecraft.version,
+  loader: `${cfg.minecraft.loader} ${cfg.minecraft.loaderVersion}`,
+  skinHost: cfg.authBase.replace(/\/authlib-injector$/, ""),
+  current: profileOf(loadSession()),
+  settings: {
+    maxRam: maxRam(),
+    minRam: cfg.memory.min,
+    gameDir: gameDir(),
+    totalRamMb: Math.floor(os.totalmem() / (1024 * 1024))
+  }
+}));
+
+ipcMain.handle("open-website", () => shell.openExternal(cfg.websiteUrl));
+
+ipcMain.handle("ping-server", () => pingServer(cfg.serverHost, cfg.serverPort));
+
+// Настройки RAM
+ipcMain.handle("set-ram", (_e, mb) => {
+  const s = loadSettings();
+  s.maxRam = Math.max(2048, Math.min(Number(mb) || cfg.memory.max, Math.floor(os.totalmem() / (1024 * 1024)) - 1024));
+  saveSettings(s);
+  return s.maxRam;
+});
+
+// Папка игры: открыть / выбрать другую
+ipcMain.handle("open-folder", () => shell.openPath(gameDir()));
+ipcMain.handle("choose-folder", async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: "Папка для файлов игры",
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (res.canceled || !res.filePaths[0]) return { canceled: true };
+  const s = loadSettings();
+  s.gameDir = res.filePaths[0];
+  saveSettings(s);
+  return { gameDir: s.gameDir };
+});
+
+// 3D-скин игрока: тянем текстуру через drasl и отдаём data-URL (без CORS в WebGL).
+ipcMain.handle("get-skin-image", async () => {
+  const a = loadSession();
+  if (!a) return null;
+  const base = cfg.authBase.replace(/\/authlib-injector$/, "");
+  const uuid = String(a.uuid).replace(/-/g, "");
+  try {
+    const res = await fetch(`${base}/session/session/minecraft/profile/${uuid}`);
+    if (!res.ok) return { dataUrl: null };
+    const prof = await res.json();
+    const tex = (prof.properties || []).find((p) => p.name === "textures");
+    if (!tex) return { dataUrl: null };
+    const decoded = JSON.parse(Buffer.from(tex.value, "base64").toString("utf8"));
+    const skin = decoded.textures && decoded.textures.SKIN;
+    if (!skin || !skin.url) return { dataUrl: null };
+    const slim = !!(skin.metadata && skin.metadata.model === "slim");
+    const img = await fetch(skin.url);
+    if (!img.ok) return { dataUrl: null };
+    const buf = Buffer.from(await img.arrayBuffer());
+    return { dataUrl: `data:image/png;base64,${buf.toString("base64")}`, slim };
+  } catch {
+    return { dataUrl: null };
+  }
+});
+
+ipcMain.handle("login", async (_e, { username, password }) => {
+  const a = await auth.login(cfg.authBase, username, password);
+  saveSession(a);
+  return profileOf(a);
+});
+
+ipcMain.handle("logout", () => { clearSession(); return true; });
+
+ipcMain.handle("play", async (event) => {
+  const send = (msg) => event.sender.send("status", msg);
+  let a = loadSession();
+  if (!a) throw new Error("Сначала войди в аккаунт.");
+
+  // Обновить токен при необходимости.
+  try {
+    if (!(await auth.validate(cfg.authBase, a.access_token))) {
+      a = await auth.refresh(cfg.authBase, a.access_token);
+      saveSession(a);
+    }
+  } catch {
+    clearSession();
+    throw new Error("Сессия истекла, войди заново.");
+  }
+
+  const dir = gameDir();
+
+  send({ stage: "neoforge", text: "Проверяю NeoForge..." });
+  const neoforgeId = await ensureNeoForge(cfg.javaPath, dir, cfg.minecraft.loaderVersion, send);
+
+  // Обновление сборки: сверяем версию с сайтом, при отличии — качаем новый .mrpack.
+  send({ stage: "modpack", text: "Проверяю версию сборки..." });
+  const remote = await remoteModpack();
+  const installed = loadInstalled();
+  const need = !installed || (remote && remote.version && remote.version !== installed.modpackVersion);
+  let mrpath = modpackPath();
+  if (need && remote && remote.url) {
+    send({ stage: "modpack", text: `Скачиваю сборку ${remote.version}...` });
+    mrpath = path.join(dataRoot(), `modpack-${remote.version}.mrpack`);
+    await downloadFile(remote.url, mrpath);
+  }
+  if (need) {
+    send({ stage: "modpack", text: "Устанавливаю сборку..." });
+    const info = await installModpack(mrpath, dir, send, {
+      excludeMods: cfg.excludeMods,
+      extraMods: cfg.extraMods
+    });
+    saveInstalled({ modpackVersion: remote ? remote.version : "bundled", ...info });
+  } else {
+    send({ stage: "modpack", text: "Сборка актуальна." });
+  }
+  await enforceMods(dir, { excludeMods: cfg.excludeMods, extraMods: cfg.extraMods }, send);
+
+  // Сервер всегда в списке «Сетевая игра».
+  writeServersDat(dir, [{ name: cfg.serverName, ip: `${cfg.serverHost}:${cfg.serverPort}`, acceptTextures: 1 }]);
+
+  const runCfg = { ...cfg, memory: { min: cfg.memory.min, max: maxRam() } };
+  send({ stage: "launch", text: `Запускаю игру под ником ${a.name} (${maxRam()} МБ)...` });
+  await launchGame({
+    cfg: runCfg,
+    gameDir: dir,
+    auth: a,
+    neoforgeId,
+    onEvent: (ev) => {
+      if (ev.type === "started") {
+        send({ stage: "started", text: "Игра запущена! Загрузка модов (~30 сек)..." });
+      } else if (ev.type === "close") {
+        send({ stage: "closed", text: `Игра закрыта (код ${ev.code})` });
+      } else if (ev.type === "debug") {
+        send({ stage: "debug", text: ev.text });
+      }
+    }
+  });
+  return true;
+});
