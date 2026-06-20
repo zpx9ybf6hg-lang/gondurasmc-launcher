@@ -187,7 +187,10 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
 const META = ${JSON.stringify(meta)};
 const TILE_W = 116;
 const reel = document.getElementById('reel');
+const reelWindow = document.getElementById('reel-window');
 const openBtn = document.getElementById('open-btn');
+let _audio = null;
+function audioCtx(){ if(!_audio) _audio = new (window.AudioContext||window.webkitAudioContext)(); return _audio; }
 
 // Вкладки
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
@@ -205,12 +208,28 @@ document.getElementById('crate').onclick = () => {
 
 function tileHtml(id){
   const m = META[id] || {};
-  return '<div class="reel-tile" style="border-color:'+(m.color||'#2a3146')+'">'
+  return '<div class="reel-tile rar-'+(m.rarity||'common')+'" style="border-color:'+(m.color||'#2a3146')+'">'
     + '<img src="/items/'+id+'.png"><span>'+(m.name||id)+'</span></div>';
 }
 
+// Клик-тик при прохождении тайла под маркером (как в CS).
+function playTick(){
+  try {
+    const ctx = audioCtx(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = 1100;
+    o.connect(g); g.connect(ctx.destination);
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.start(t); o.stop(t + 0.06);
+  } catch(e){}
+}
+
+const DUR = 6.0;
 openBtn.addEventListener('click', async () => {
   openBtn.disabled = true;
+  document.querySelector('.reel-tile.landed')?.classList.remove('landed');
   let data;
   try { const r = await fetch('/donate/open', {method:'POST'}); data = await r.json(); }
   catch(e){ openBtn.disabled = false; return; }
@@ -218,14 +237,33 @@ openBtn.addEventListener('click', async () => {
   reel.style.transition = 'none';
   reel.style.transform = 'translateX(0)';
   reel.innerHTML = data.reel.map(tileHtml).join('');
-  const win = document.getElementById('reel-window');
   void reel.offsetWidth;
+
   const jitter = Math.random()*36 - 18;
-  const target = -(data.winnerIndex*TILE_W + TILE_W/2 - win.clientWidth/2) + jitter;
-  reel.style.transition = 'transform 5.6s cubic-bezier(0.07,0.85,0.12,1)';
+  const target = -(data.winnerIndex*TILE_W + TILE_W/2 - reelWindow.clientWidth/2) + jitter;
+  reelWindow.classList.add('spinning');
+  reel.style.transition = 'transform ' + DUR + 's cubic-bezier(0.07,0.85,0.12,1)';
   reel.style.transform = 'translateX('+target+'px)';
 
-  setTimeout(() => { showWin(data.winner, data.qty); addToInv(data.winner, data.qty); openBtn.disabled = false; }, 5800);
+  // Тики, синхронные с движением (через позицию трансформа).
+  let lastIdx = null, running = true;
+  (function track(){
+    if(!running) return;
+    const x = new DOMMatrixReadOnly(getComputedStyle(reel).transform).m41;
+    const idx = Math.round((-x + reelWindow.clientWidth/2 - TILE_W/2) / TILE_W);
+    if(idx !== lastIdx){ lastIdx = idx; playTick(); }
+    requestAnimationFrame(track);
+  })();
+
+  // Снять размытие ближе к концу (когда уже медленно).
+  setTimeout(() => reelWindow.classList.remove('spinning'), DUR*1000 - 900);
+
+  setTimeout(() => {
+    running = false;
+    const tile = reel.children[data.winnerIndex];
+    if(tile){ tile.classList.add('landed'); tile.style.boxShadow = '0 0 24px ' + (META[data.winner]||{}).color; }
+    setTimeout(() => { showWin(data.winner, data.qty); addToInv(data.winner, data.qty); openBtn.disabled = false; }, 450);
+  }, DUR*1000 + 60);
 });
 
 function showWin(id, qty){

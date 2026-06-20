@@ -197,3 +197,22 @@ footer { text-align: center; color: var(--muted); padding: 24px; font-size: 13px
 @keyframes winpop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes winpulse { 0%,100% { opacity:.45; transform: translate(-50%,-50%) scale(.9); } 50% { opacity:.85; transform: translate(-50%,-50%) scale(1.1); } }
 @keyframes winfloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* ── Анимация кейса: полировка ── */
+.reel-window::before, .reel-window::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2; pointer-events: none;
+}
+.reel-window::before { left: 0; background: linear-gradient(90deg, #0d1322 0%, transparent 100%); }
+.reel-window::after  { right: 0; background: linear-gradient(270deg, #0d1322 0%, transparent 100%); }
+.reel-marker { width: 2px; margin-left: -1px; z-index: 4; }
+.reel-marker::before, .reel-marker::after {
+  content: ""; position: absolute; left: 50%; transform: translateX(-50%);
+  border-left: 7px solid transparent; border-right: 7px solid transparent;
+}
+.reel-marker::before { top: -1px; border-top: 10px solid var(--accent2); }
+.reel-marker::after  { bottom: -1px; border-bottom: 10px solid var(--accent2); }
+.reel-window.spinning .reel { filter: blur(1.4px); }
+.reel-tile { transition: transform .35s ease, box-shadow .35s ease; }
+.reel-tile.rar-epic      { box-shadow: inset 0 0 16px #d152ff40; }
+.reel-tile.rar-legendary { box-shadow: inset 0 0 20px #ffae3559; }
+.reel-tile.landed { transform: scale(1.12); z-index: 3; }
