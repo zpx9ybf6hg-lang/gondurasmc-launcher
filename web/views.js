@@ -122,27 +122,86 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
 
   return `
 <section class="card">
-  <h2>Донат · Кейсы</h2>
-  <p class="hint">Открывай кейсы бесплатно (пока без лимитов). Выпавшее падает в твой инвентарь на сайте. Позже можно будет забрать на сервер.</p>
-
-  <div class="case-stage">
-    <div class="reel-window" id="reel-window">
-      <div class="reel-marker"></div>
-      <div class="reel" id="reel"></div>
-    </div>
-    <div class="result hidden" id="result"></div>
+  <h2>Донат</h2>
+  <div class="tabs">
+    <button class="tab active" data-tab="cases">Кейсы</button>
+    <button class="tab" data-tab="shop">Магазин</button>
+    <button class="tab" data-tab="vip">Привилегии</button>
+    <button class="tab" data-tab="inv">Инвентарь</button>
   </div>
-  <button id="open-btn" class="btn primary big-open">Открыть кейс</button>
 
-  <h3 class="inv-h">Инвентарь</h3>
-  <div class="inv-grid" id="inv-grid">${invHtml}</div>
+  <!-- КЕЙСЫ -->
+  <div class="tab-panel" id="tab-cases">
+    <p class="hint">Выбери кейс и открой. Бесплатно, без лимитов. Выпавшее падает в инвентарь.</p>
+    <div class="case-list">
+      <button class="crate" id="crate">
+        <div class="crate-art"><div class="crate-lid"></div><div class="crate-latch"></div></div>
+        <div class="crate-name">Стартовый кейс</div>
+        <div class="crate-sub">9 предметов · нажми, чтобы открыть</div>
+      </button>
+    </div>
+
+    <div id="open-stage" class="hidden">
+      <div class="reel-window" id="reel-window">
+        <div class="reel-marker"></div>
+        <div class="reel" id="reel"></div>
+      </div>
+      <button id="open-btn" class="btn primary big-open">Открыть кейс</button>
+    </div>
+  </div>
+
+  <!-- МАГАЗИН -->
+  <div class="tab-panel hidden" id="tab-shop">
+    <div class="soon"><h3>Магазин предметов</h3><p class="hint">Скоро: покупка ресурсов и предметов напрямую.</p></div>
+  </div>
+
+  <!-- ПРИВИЛЕГИИ -->
+  <div class="tab-panel hidden" id="tab-vip">
+    <div class="vip-grid">
+      <div class="vip-card vip"><div class="vip-name">VIP</div><p class="hint">Скоро</p></div>
+      <div class="vip-card vipp"><div class="vip-name">VIP+</div><p class="hint">Скоро</p></div>
+      <div class="vip-card prem"><div class="vip-name">Premium</div><p class="hint">Скоро</p></div>
+    </div>
+  </div>
+
+  <!-- ИНВЕНТАРЬ -->
+  <div class="tab-panel hidden" id="tab-inv">
+    <h3 class="inv-h">Твой инвентарь</h3>
+    <div class="inv-grid" id="inv-grid">${invHtml}</div>
+  </div>
 </section>
+
+<!-- Оверлей выигрыша -->
+<div id="win-overlay" class="win-overlay hidden">
+  <div class="win-box" id="win-box">
+    <div class="win-title">ВАМ ВЫПАЛО!</div>
+    <div class="win-glow" id="win-glow"></div>
+    <img id="win-img" alt="">
+    <div class="win-name" id="win-name"></div>
+    <div class="win-rar" id="win-rar"></div>
+    <button class="btn primary" id="win-close">Забрать</button>
+  </div>
+</div>
 
 <script>
 const META = ${JSON.stringify(meta)};
-const reel = document.getElementById('reel');
-const btn = document.getElementById('open-btn');
 const TILE_W = 116;
+const reel = document.getElementById('reel');
+const openBtn = document.getElementById('open-btn');
+
+// Вкладки
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  ['cases','shop','vip','inv'].forEach(p =>
+    document.getElementById('tab-'+p).classList.toggle('hidden', p !== t.dataset.tab));
+});
+
+// Выбор кейса → показать сцену открытия
+document.getElementById('crate').onclick = () => {
+  document.getElementById('crate').classList.add('selected');
+  document.getElementById('open-stage').classList.remove('hidden');
+  document.getElementById('open-stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
 
 function tileHtml(id){
   const m = META[id] || {};
@@ -150,44 +209,73 @@ function tileHtml(id){
     + '<img src="/items/'+id+'.png"><span>'+(m.name||id)+'</span></div>';
 }
 
-btn.addEventListener('click', async () => {
-  btn.disabled = true;
-  document.getElementById('result').classList.add('hidden');
+openBtn.addEventListener('click', async () => {
+  openBtn.disabled = true;
   let data;
   try { const r = await fetch('/donate/open', {method:'POST'}); data = await r.json(); }
-  catch(e){ btn.disabled = false; return; }
+  catch(e){ openBtn.disabled = false; return; }
 
   reel.style.transition = 'none';
   reel.style.transform = 'translateX(0)';
   reel.innerHTML = data.reel.map(tileHtml).join('');
   const win = document.getElementById('reel-window');
   void reel.offsetWidth;
-  const jitter = Math.random()*40 - 20;
+  const jitter = Math.random()*36 - 18;
   const target = -(data.winnerIndex*TILE_W + TILE_W/2 - win.clientWidth/2) + jitter;
-  reel.style.transition = 'transform 5.5s cubic-bezier(0.10,0.83,0.13,1)';
+  reel.style.transition = 'transform 5.6s cubic-bezier(0.07,0.85,0.12,1)';
   reel.style.transform = 'translateX('+target+'px)';
 
-  setTimeout(() => { showResult(data.winner); addToInv(data.winner); btn.disabled = false; }, 5700);
+  setTimeout(() => { showWin(data.winner, data.qty); addToInv(data.winner, data.qty); openBtn.disabled = false; }, 5800);
 });
 
-function showResult(id){
+function showWin(id, qty){
   const m = META[id] || {};
-  const el = document.getElementById('result');
-  el.style.borderColor = m.color;
-  el.innerHTML = '<img src="/items/'+id+'.png"><div><div class="r-rar" style="color:'+m.color+'">'+m.rarityLabel+'</div><div class="r-name">Выпало: '+m.name+'</div></div>';
-  el.classList.remove('hidden');
+  const ov = document.getElementById('win-overlay');
+  const box = document.getElementById('win-box');
+  document.getElementById('win-img').src = '/items/'+id+'.png';
+  document.getElementById('win-name').textContent = m.name + ' ×' + qty;
+  const rar = document.getElementById('win-rar');
+  rar.textContent = m.rarityLabel; rar.style.color = m.color;
+  document.getElementById('win-glow').style.background =
+    'radial-gradient(circle, '+m.color+'88 0%, transparent 70%)';
+  box.style.borderColor = m.color;
+  box.className = 'win-box rar-' + (m.rarity || 'common');
+  ov.classList.remove('hidden');
+  playWinSound(m.rarity);
+}
+document.getElementById('win-close').onclick = () =>
+  document.getElementById('win-overlay').classList.add('hidden');
+
+// Звук без файлов (Web Audio): чем реже — тем «богаче» фанфара.
+function playWinSound(rarity){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const seq = rarity === 'legendary' ? [523,659,784,1047,1319]
+      : rarity === 'epic' ? [523,784,1047]
+      : rarity === 'rare' ? [523,659,784] : [523,659];
+    let t = ctx.currentTime;
+    seq.forEach((f) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.start(t); o.stop(t + 0.3); t += 0.12;
+    });
+  } catch(e){}
 }
 
-function addToInv(id){
+function addToInv(id, qty){
   const grid = document.getElementById('inv-grid');
   const empty = document.getElementById('inv-empty'); if(empty) empty.remove();
   let tile = grid.querySelector('.inv-tile[data-id="'+id+'"]');
-  if(tile){ const c = tile.querySelector('.count'); c.textContent = (parseInt(c.textContent)||0)+1; }
+  if(tile){ const c = tile.querySelector('.count'); c.textContent = (parseInt(c.textContent)||0) + qty; }
   else {
     const m = META[id] || {};
     const d = document.createElement('div');
     d.className = 'inv-tile'; d.dataset.id = id; d.style.borderColor = m.color;
-    d.innerHTML = '<img src="/items/'+id+'.png"><span class="inv-name">'+m.name+'</span><span class="count">1</span>';
+    d.innerHTML = '<img src="/items/'+id+'.png"><span class="inv-name">'+m.name+'</span><span class="count">'+qty+'</span>';
     grid.prepend(d);
   }
 }

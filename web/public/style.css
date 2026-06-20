@@ -139,3 +139,60 @@ footer { text-align: center; color: var(--muted); padding: 24px; font-size: 13px
   position: absolute; top: 5px; right: 6px; background: var(--accent); color: #fff;
   font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 8px;
 }
+
+/* ── Донат: вкладки ── */
+.tabs { display: flex; gap: 6px; margin: 6px 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tab { background: none; border: 0; color: var(--muted); font: inherit; font-weight: 600; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+/* ── Кейс-крейт (на деревянной текстуре) ── */
+.case-list { display: flex; gap: 16px; flex-wrap: wrap; }
+.crate { width: 200px; background: none; border: 0; cursor: pointer; padding: 0; font: inherit; color: var(--text); }
+.crate-art {
+  position: relative; height: 150px; border-radius: 12px;
+  background: url("/items/oak_planks.png"); background-size: 48px; image-rendering: pixelated;
+  border: 4px solid #241608; box-shadow: 0 10px 26px rgba(0,0,0,.5);
+  transition: transform .15s, box-shadow .15s;
+}
+.crate:hover .crate-art { transform: translateY(-5px); box-shadow: 0 16px 34px rgba(0,0,0,.6), 0 0 26px var(--accent); }
+.crate.selected .crate-art { outline: 3px solid var(--accent); outline-offset: 2px; }
+.crate-lid { position: absolute; left: -4px; right: -4px; top: 44px; height: 7px; background: #1a0f06; }
+.crate-latch {
+  position: absolute; left: 50%; top: 38px; width: 26px; height: 42px; margin-left: -13px;
+  border-radius: 4px; background: linear-gradient(180deg, #ffd479, #b5832b);
+  border: 2px solid #1a0f06; box-shadow: 0 0 10px #ffce6f99;
+}
+.crate-name { font-weight: 800; margin-top: 12px; font-size: 15px; }
+.crate-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+#open-stage { margin-top: 20px; }
+
+/* ── Магазин / привилегии (заглушки) ── */
+.soon { text-align: center; padding: 36px 10px; }
+.vip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.vip-card { border: 1px solid var(--line); border-radius: 12px; padding: 26px 16px; text-align: center; background: #131c2e; }
+.vip-card.vip  { box-shadow: inset 0 0 0 1px #4aa3ff55; }
+.vip-card.vipp { box-shadow: inset 0 0 0 1px #7d63ff55; }
+.vip-card.prem { box-shadow: inset 0 0 0 1px #ffae3455; }
+.vip-name { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+
+/* ── Оверлей выигрыша ── */
+.win-overlay {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: rgba(5,8,14,.82); backdrop-filter: blur(5px);
+}
+.win-box {
+  position: relative; background: #0f1a2c; border: 2px solid var(--line); border-radius: 18px;
+  padding: 34px 48px; text-align: center; overflow: hidden;
+  animation: winpop .4s cubic-bezier(.2,1.4,.4,1);
+}
+.win-title { position: relative; font-size: 12px; letter-spacing: 3px; color: var(--muted); margin-bottom: 16px; }
+.win-glow { position: absolute; left: 50%; top: 48%; width: 340px; height: 340px; transform: translate(-50%,-50%); animation: winpulse 2s infinite; pointer-events: none; }
+.win-box img { position: relative; width: 92px; height: 92px; image-rendering: pixelated; animation: winfloat 2s ease-in-out infinite; }
+.win-name { position: relative; font-size: 22px; font-weight: 800; margin-top: 14px; }
+.win-rar { position: relative; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0 20px; }
+.win-box.rar-epic { box-shadow: 0 0 45px #d152ff55; }
+.win-box.rar-legendary { box-shadow: 0 0 60px #ffae3477; }
+@keyframes winpop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes winpulse { 0%,100% { opacity:.45; transform: translate(-50%,-50%) scale(.9); } 50% { opacity:.85; transform: translate(-50%,-50%) scale(1.1); } }
+@keyframes winfloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }

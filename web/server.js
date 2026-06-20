@@ -11,7 +11,7 @@ function itemMeta() {
   const m = {};
   for (const it of cases.ITEMS) {
     const r = cases.RARITY[it.rarity];
-    m[it.id] = { name: it.name, color: r.color, rarityLabel: r.label };
+    m[it.id] = { name: it.name, color: r.color, rarityLabel: r.label, rarity: it.rarity };
   }
   return m;
 }
@@ -165,9 +165,10 @@ app.get("/donate", requireAuth, (req, res) => {
 
 app.post("/donate/open", requireAuth, (req, res) => {
   const result = cases.openCase();
-  inventory.addItem(req.session.user.uuid, result.winner.id);
+  inventory.addItem(req.session.user.uuid, result.winner.id, result.qty);
   res.json({
     winner: result.winner.id,
+    qty: result.qty,
     winnerIndex: result.winnerIndex,
     reel: result.reel.map((i) => i.id)
   });

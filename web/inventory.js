@@ -21,10 +21,10 @@ function save(uuid, inv) {
   fs.writeFileSync(file(uuid), JSON.stringify(inv));
 }
 
-function addItem(uuid, itemId) {
+function addItem(uuid, itemId, count = 1) {
   const inv = get(uuid);
-  inv.items[itemId] = (inv.items[itemId] || 0) + 1;
-  inv.history.unshift({ item: itemId, at: Date.now() });
+  inv.items[itemId] = (inv.items[itemId] || 0) + count;
+  inv.history.unshift({ item: itemId, count, at: Date.now() });
   if (inv.history.length > 50) inv.history.length = 50;
   save(uuid, inv);
   return inv;
