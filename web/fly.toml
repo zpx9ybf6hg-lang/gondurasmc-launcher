@@ -7,6 +7,12 @@ primary_region = "arn"
 [env]
   DRASL_URL = "https://gondurasmc-auth.fly.dev"
   NODE_ENV = "production"
+  INVENTORY_DIR = "/data/inventories"
+
+# Постоянное хранилище инвентарей игроков.
+[[mounts]]
+  source = "data"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080

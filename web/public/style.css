@@ -95,3 +95,47 @@ code { font-size: 12px; color: var(--muted); }
 .dl span { color: var(--muted); font-size: 13px; }
 
 footer { text-align: center; color: var(--muted); padding: 24px; font-size: 13px; border-top: 1px solid var(--line); }
+
+/* ── Донат / кейсы ── */
+.case-stage { margin: 18px 0; }
+.reel-window {
+  position: relative; height: 150px; overflow: hidden;
+  background: #0d1322; border: 1px solid var(--line); border-radius: 12px;
+}
+.reel-marker {
+  position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2)); z-index: 3;
+  box-shadow: 0 0 12px var(--accent);
+}
+.reel { display: flex; height: 100%; align-items: center; will-change: transform; }
+.reel-tile {
+  width: 100px; margin: 0 8px; flex: none; height: 118px;
+  background: #131c2e; border: 2px solid #2a3146; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+}
+.reel-tile img, .inv-tile img, .result img { image-rendering: pixelated; }
+.reel-tile img { width: 52px; height: 52px; }
+.reel-tile span { font-size: 11px; color: var(--muted); }
+
+.result {
+  margin-top: 14px; display: flex; align-items: center; gap: 16px;
+  background: #131c2e; border: 2px solid var(--line); border-radius: 12px; padding: 14px 18px;
+}
+.result img { width: 56px; height: 56px; }
+.result .r-rar { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+.result .r-name { font-size: 16px; font-weight: 800; margin-top: 2px; }
+
+.big-open { width: 100%; padding: 15px; font-size: 17px; margin-top: 4px; }
+
+.inv-h { font-size: 13px; letter-spacing: 1px; color: var(--muted); margin: 24px 0 12px; text-transform: uppercase; }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.inv-tile {
+  position: relative; background: #131c2e; border: 2px solid #2a3146; border-radius: 10px;
+  padding: 12px 6px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.inv-tile img { width: 40px; height: 40px; }
+.inv-name { font-size: 11px; color: var(--muted); text-align: center; }
+.inv-tile .count {
+  position: absolute; top: 5px; right: 6px; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 8px;
+}

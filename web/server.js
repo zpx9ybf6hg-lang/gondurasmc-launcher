@@ -4,6 +4,17 @@ const multer = require("multer");
 const fetch = require("node-fetch");
 const path = require("path");
 const V = require("./views");
+const cases = require("./cases");
+const inventory = require("./inventory");
+
+function itemMeta() {
+  const m = {};
+  for (const it of cases.ITEMS) {
+    const r = cases.RARITY[it.rarity];
+    m[it.id] = { name: it.name, color: r.color, rarityLabel: r.label };
+  }
+  return m;
+}
 
 const DRASL_URL = process.env.DRASL_URL || "https://gondurasmc-auth.fly.dev";
 const PORT = process.env.PORT || 8080;
@@ -145,6 +156,22 @@ app.post("/profile/skin", requireAuth, upload.single("skin"), async (req, res) =
 app.get("/download", (req, res) =>
   render(res, V.download, { title: "Скачать", user: req.session.user })
 );
+
+// Донат / кейсы
+app.get("/donate", requireAuth, (req, res) => {
+  const inv = inventory.get(req.session.user.uuid);
+  render(res, V.donate, { title: "Донат", user: req.session.user, inv, meta: itemMeta() });
+});
+
+app.post("/donate/open", requireAuth, (req, res) => {
+  const result = cases.openCase();
+  inventory.addItem(req.session.user.uuid, result.winner.id);
+  res.json({
+    winner: result.winner.id,
+    winnerIndex: result.winnerIndex,
+    reel: result.reel.map((i) => i.id)
+  });
+});
 
 function setSession(req, r) {
   req.session.token = r.apiToken;

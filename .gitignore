@@ -20,3 +20,6 @@ server/
 .pk/
 .t2.js
 .tl.js
+
+# локальные инвентари (том на Fly)
+web/data/

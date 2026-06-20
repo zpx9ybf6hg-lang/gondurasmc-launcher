@@ -6,10 +6,12 @@ const esc = (s) =>
 
 function layout({ title, user, body }) {
   const nav = user
-    ? `<a href="/profile">Профиль</a>
+    ? `<a href="/donate">Донат</a>
+       <a href="/profile">Профиль</a>
        <a href="/download">Скачать</a>
        <form method="post" action="/logout" class="inline"><button class="navbtn">Выйти</button></form>`
-    : `<a href="/download">Скачать</a>
+    : `<a href="/donate">Донат</a>
+       <a href="/download">Скачать</a>
        <a href="/login">Вход</a>
        <a href="/register" class="nav-cta">Регистрация</a>`;
   return `<!DOCTYPE html><html lang="ru"><head>
@@ -106,6 +108,92 @@ const download = ({ user }) => `
   ${!user ? `<p class="sub">Сначала <a href="/register">зарегистрируйся</a>, чтобы войти в лаунчере.</p>` : ""}
 </section>`;
 
+const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
+  const entries = Object.entries(inv.items).sort((a, b) => b[1] - a[1]);
+  const invHtml = entries.length
+    ? entries.map(([id, c]) => {
+        const m = meta[id] || {};
+        return `<div class="inv-tile" data-id="${esc(id)}" style="border-color:${esc(m.color)}">
+          <img src="/items/${esc(id)}.png" alt="${esc(m.name)}">
+          <span class="inv-name">${esc(m.name)}</span>
+          <span class="count">${c}</span></div>`;
+      }).join("")
+    : `<p class="hint" id="inv-empty">Инвентарь пуст — открой кейс!</p>`;
+
+  return `
+<section class="card">
+  <h2>Донат · Кейсы</h2>
+  <p class="hint">Открывай кейсы бесплатно (пока без лимитов). Выпавшее падает в твой инвентарь на сайте. Позже можно будет забрать на сервер.</p>
+
+  <div class="case-stage">
+    <div class="reel-window" id="reel-window">
+      <div class="reel-marker"></div>
+      <div class="reel" id="reel"></div>
+    </div>
+    <div class="result hidden" id="result"></div>
+  </div>
+  <button id="open-btn" class="btn primary big-open">Открыть кейс</button>
+
+  <h3 class="inv-h">Инвентарь</h3>
+  <div class="inv-grid" id="inv-grid">${invHtml}</div>
+</section>
+
+<script>
+const META = ${JSON.stringify(meta)};
+const reel = document.getElementById('reel');
+const btn = document.getElementById('open-btn');
+const TILE_W = 116;
+
+function tileHtml(id){
+  const m = META[id] || {};
+  return '<div class="reel-tile" style="border-color:'+(m.color||'#2a3146')+'">'
+    + '<img src="/items/'+id+'.png"><span>'+(m.name||id)+'</span></div>';
+}
+
+btn.addEventListener('click', async () => {
+  btn.disabled = true;
+  document.getElementById('result').classList.add('hidden');
+  let data;
+  try { const r = await fetch('/donate/open', {method:'POST'}); data = await r.json(); }
+  catch(e){ btn.disabled = false; return; }
+
+  reel.style.transition = 'none';
+  reel.style.transform = 'translateX(0)';
+  reel.innerHTML = data.reel.map(tileHtml).join('');
+  const win = document.getElementById('reel-window');
+  void reel.offsetWidth;
+  const jitter = Math.random()*40 - 20;
+  const target = -(data.winnerIndex*TILE_W + TILE_W/2 - win.clientWidth/2) + jitter;
+  reel.style.transition = 'transform 5.5s cubic-bezier(0.10,0.83,0.13,1)';
+  reel.style.transform = 'translateX('+target+'px)';
+
+  setTimeout(() => { showResult(data.winner); addToInv(data.winner); btn.disabled = false; }, 5700);
+});
+
+function showResult(id){
+  const m = META[id] || {};
+  const el = document.getElementById('result');
+  el.style.borderColor = m.color;
+  el.innerHTML = '<img src="/items/'+id+'.png"><div><div class="r-rar" style="color:'+m.color+'">'+m.rarityLabel+'</div><div class="r-name">Выпало: '+m.name+'</div></div>';
+  el.classList.remove('hidden');
+}
+
+function addToInv(id){
+  const grid = document.getElementById('inv-grid');
+  const empty = document.getElementById('inv-empty'); if(empty) empty.remove();
+  let tile = grid.querySelector('.inv-tile[data-id="'+id+'"]');
+  if(tile){ const c = tile.querySelector('.count'); c.textContent = (parseInt(c.textContent)||0)+1; }
+  else {
+    const m = META[id] || {};
+    const d = document.createElement('div');
+    d.className = 'inv-tile'; d.dataset.id = id; d.style.borderColor = m.color;
+    d.innerHTML = '<img src="/items/'+id+'.png"><span class="inv-name">'+m.name+'</span><span class="count">1</span>';
+    grid.prepend(d);
+  }
+}
+</script>`;
+};
+
 // Ссылки на сборки лаунчера (заполнить после публикации релизов).
 const DL = {
   win: process.env.DL_WIN || "#",
@@ -113,4 +201,4 @@ const DL = {
   linux: process.env.DL_LINUX || "#"
 };
 
-module.exports = { layout, landing, register, login, profile, download };
+module.exports = { layout, landing, register, login, profile, download, donate };
