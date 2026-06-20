@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 8080;
 const app = express();
 app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
   session({
@@ -157,15 +158,29 @@ app.get("/download", (req, res) =>
   render(res, V.download, { title: "Скачать", user: req.session.user })
 );
 
+// Ключ игрока = UUID игрока (его же знает сервер).
+const pid = (req) => req.session.user && req.session.user.playerUuid;
+
 // Донат / кейсы
 app.get("/donate", requireAuth, (req, res) => {
-  const inv = inventory.get(req.session.user.uuid);
-  render(res, V.donate, { title: "Донат", user: req.session.user, inv, meta: itemMeta() });
+  const inv = inventory.get(pid(req));
+  const daily = inventory.dailyStatus(pid(req));
+  render(res, V.donate, { title: "Донат", user: req.session.user, inv, daily, meta: itemMeta() });
 });
 
+// Ежедневный кейс: нужен 2ч наигранного сегодня + раз в 24ч.
 app.post("/donate/open", requireAuth, (req, res) => {
+  const uuid = pid(req);
+  const st = inventory.dailyStatus(uuid);
+  if (!st.eligible) {
+    const reason = st.played < st.need
+      ? `Нужно наиграть ${Math.ceil(st.need / 3600)} ч сегодня (есть ${(st.played / 3600).toFixed(1)} ч).`
+      : `Кейс уже открыт. Доступен через ${Math.ceil(st.cooldownMs / 3600000)} ч.`;
+    return res.status(403).json({ error: reason });
+  }
   const result = cases.openCase();
-  inventory.addItem(req.session.user.uuid, result.winner.id, result.qty);
+  inventory.addItem(uuid, result.winner.id, result.qty);
+  inventory.markDailyOpen(uuid);
   res.json({
     winner: result.winner.id,
     qty: result.qty,
@@ -174,9 +189,39 @@ app.post("/donate/open", requireAuth, (req, res) => {
   });
 });
 
+// ── Server↔Web API (для KubeJS на сервере), защита общим ключом ──
+function requireKey(req, res, next) {
+  const key = req.query.key || req.get("x-server-key");
+  if (!process.env.SERVER_KEY || key !== process.env.SERVER_KEY)
+    return res.status(401).json({ error: "bad key" });
+  next();
+}
+
+// Сервер сообщает наигранное время (раз в минуту по онлайн-игрокам).
+app.post("/api/playtime", requireKey, (req, res) => {
+  const { uuid, seconds } = req.body || {};
+  if (!uuid) return res.status(400).json({ error: "no uuid" });
+  const total = inventory.addPlaytime(uuid, Number(seconds) || 0);
+  res.json({ ok: true, playtimeToday: total });
+});
+
+// Команда /claim на сервере: забрать предметы (очищает инвентарь).
+app.get("/api/claim", requireKey, (req, res) => {
+  const uuid = req.query.uuid;
+  if (!uuid) return res.status(400).json({ error: "no uuid" });
+  const items = inventory.takeAll(uuid);
+  res.json({ items: Object.entries(items).map(([id, count]) => ({ id, count })) });
+});
+
 function setSession(req, r) {
   req.session.token = r.apiToken;
-  req.session.user = { username: r.user.username, uuid: r.user.uuid };
+  const player = (r.user.players && r.user.players[0]) || {};
+  req.session.user = {
+    username: r.user.username,
+    uuid: r.user.uuid,
+    playerUuid: player.uuid || r.user.uuid,
+    playerName: player.name || r.user.username
+  };
 }
 
 app.listen(PORT, () => console.log(`web on :${PORT}, drasl=${DRASL_URL}`));

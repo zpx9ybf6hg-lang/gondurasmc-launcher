@@ -108,7 +108,14 @@ const download = ({ user }) => `
   ${!user ? `<p class="sub">Сначала <a href="/register">зарегистрируйся</a>, чтобы войти в лаунчере.</p>` : ""}
 </section>`;
 
-const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
+const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {} } = {}) => {
+  const playedH = ((daily.played || 0) / 3600).toFixed(1);
+  const needH = ((daily.need || 7200) / 3600);
+  const cdH = Math.ceil((daily.cooldownMs || 0) / 3600000);
+  let dailyText, locked = !daily.eligible;
+  if (daily.eligible) dailyText = "Доступен — открой!";
+  else if ((daily.played || 0) < (daily.need || 7200)) dailyText = `Наиграй ${needH} ч сегодня · сейчас ${playedH} ч`;
+  else dailyText = `Уже открыт · через ${cdH} ч`;
   const entries = Object.entries(inv.items).sort((a, b) => b[1] - a[1]);
   const invHtml = entries.length
     ? entries.map(([id, c]) => {
@@ -132,12 +139,12 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
 
   <!-- КЕЙСЫ -->
   <div class="tab-panel" id="tab-cases">
-    <p class="hint">Выбери кейс и открой. Бесплатно, без лимитов. Выпавшее падает в инвентарь.</p>
+    <p class="hint">Ежедневный кейс. Нужно наиграть ${needH} ч на сервере, открывается раз в 24 ч.</p>
     <div class="case-list">
-      <button class="crate" id="crate">
-        <div class="crate-art"><div class="crate-lid"></div><div class="crate-latch"></div></div>
-        <div class="crate-name">Стартовый кейс</div>
-        <div class="crate-sub">9 предметов · нажми, чтобы открыть</div>
+      <button class="crate ${locked ? "locked" : ""}" id="crate">
+        <div class="crate-art"><div class="crate-lid"></div><div class="crate-latch"></div>${locked ? '<div class="crate-lock">🔒</div>' : ""}</div>
+        <div class="crate-name">Ежедневный кейс</div>
+        <div class="crate-sub ${daily.eligible ? "ok" : ""}">${esc(dailyText)}</div>
       </button>
     </div>
 
@@ -146,7 +153,8 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {} } = {}) => {
         <div class="reel-marker"></div>
         <div class="reel" id="reel"></div>
       </div>
-      <button id="open-btn" class="btn primary big-open">Открыть кейс</button>
+      <button id="open-btn" class="btn primary big-open"${locked ? " disabled" : ""}>${locked ? "Недоступно" : "Открыть кейс"}</button>
+      <p id="open-msg" class="hint" style="text-align:center;margin-top:10px"></p>
     </div>
   </div>
 
@@ -229,10 +237,14 @@ function playTick(){
 const DUR = 6.0;
 openBtn.addEventListener('click', async () => {
   openBtn.disabled = true;
+  document.getElementById('open-msg').textContent = '';
   document.querySelector('.reel-tile.landed')?.classList.remove('landed');
   let data;
-  try { const r = await fetch('/donate/open', {method:'POST'}); data = await r.json(); }
-  catch(e){ openBtn.disabled = false; return; }
+  try {
+    const r = await fetch('/donate/open', {method:'POST'});
+    data = await r.json();
+    if (!r.ok) { document.getElementById('open-msg').textContent = data.error || 'Недоступно'; openBtn.disabled = false; return; }
+  } catch(e){ openBtn.disabled = false; return; }
 
   reel.style.transition = 'none';
   reel.style.transform = 'translateX(0)';
