@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld("launcher", {
   play: () => ipcRenderer.invoke("play"),
   onStatus: (cb) => ipcRenderer.on("status", (_e, msg) => cb(msg)),
   onUpdate: (cb) => ipcRenderer.on("update", (_e, msg) => cb(msg)),
-  installUpdate: () => ipcRenderer.invoke("install-update")
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  downloadUpdate: () => ipcRenderer.invoke("download-update")
 });

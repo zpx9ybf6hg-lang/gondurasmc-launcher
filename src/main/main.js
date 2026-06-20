@@ -100,27 +100,48 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
 }
 
+const REPO = "zpx9ybf6hg-lang/gondurasmc-launcher";
+let macUpdate = null;
+
 function sendUpdate(msg) {
   if (win && !win.isDestroyed()) win.webContents.send("update", msg);
 }
 
+function isNewer(remote, current) {
+  const a = String(remote).split(".").map(Number);
+  const b = String(current).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
 // Проверка обновлений лаунчера при запуске.
 function setupUpdater() {
-  const isMac = process.platform === "darwin";
-  // На macOS без подписи авто-применение невозможно — только уведомляем и шлём на сайт.
-  autoUpdater.autoDownload = !isMac;
-  autoUpdater.on("update-available", (info) => {
-    if (isMac) sendUpdate({ kind: "available-mac", version: info.version });
-    else sendUpdate({ kind: "downloading", version: info.version });
-  });
-  autoUpdater.on("download-progress", (p) =>
-    sendUpdate({ kind: "progress", percent: Math.round(p.percent) })
-  );
-  autoUpdater.on("update-downloaded", (info) =>
-    sendUpdate({ kind: "ready", version: info.version })
-  );
-  autoUpdater.on("error", () => {}); // в dev/без сети — молча
+  if (process.platform === "darwin") return setupMacUpdater();
+  // Windows/Linux: полный авто-апдейт внутри лаунчера.
+  autoUpdater.autoDownload = true;
+  autoUpdater.on("update-available", (info) => sendUpdate({ kind: "downloading", version: info.version }));
+  autoUpdater.on("download-progress", (p) => sendUpdate({ kind: "progress", percent: Math.round(p.percent) }));
+  autoUpdater.on("update-downloaded", (info) => sendUpdate({ kind: "ready", version: info.version }));
+  autoUpdater.on("error", () => {});
   autoUpdater.checkForUpdates().catch(() => {});
+}
+
+// macOS: своя проверка версии (Squirrel без подписи не работает), докачка внутри лаунчера.
+async function setupMacUpdater() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" }
+    });
+    if (!res.ok) return;
+    const rel = await res.json();
+    const remote = String(rel.tag_name || "").replace(/^v/, "");
+    if (!remote || !isNewer(remote, app.getVersion())) return;
+    macUpdate = { version: remote };
+    sendUpdate({ kind: "available-mac", version: remote });
+  } catch { /* нет сети — тихо */ }
 }
 
 app.whenReady().then(() => {
@@ -136,6 +157,30 @@ app.whenReady().then(() => {
 // Применить обновление (Win/Linux): перезапуск с установкой.
 ipcMain.handle("install-update", () => {
   autoUpdater.quitAndInstall();
+});
+
+// macOS: скачать новый билд внутри лаунчера и открыть (без карантина → без «damaged»).
+ipcMain.handle("download-update", async () => {
+  const url = `https://github.com/${REPO}/releases/latest/download/GondurasMC.dmg`;
+  const dest = path.join(app.getPath("temp"), "GondurasMC-update.dmg");
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const total = Number(res.headers.get("content-length")) || 0;
+  let recv = 0;
+  const chunks = [];
+  await new Promise((resolve, reject) => {
+    res.body.on("data", (c) => {
+      recv += c.length;
+      chunks.push(c);
+      if (total) sendUpdate({ kind: "progress", percent: Math.round((recv / total) * 100) });
+    });
+    res.body.on("end", resolve);
+    res.body.on("error", reject);
+  });
+  fs.writeFileSync(dest, Buffer.concat(chunks));
+  await shell.openPath(dest); // монтирует .dmg — игроку остаётся перетащить в Applications
+  sendUpdate({ kind: "downloaded-mac", version: macUpdate ? macUpdate.version : "" });
+  return { ok: true };
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

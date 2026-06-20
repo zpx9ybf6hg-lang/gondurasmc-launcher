@@ -56,27 +56,36 @@ function handleUpdate(msg) {
   const btn = $("update-btn");
   bar.classList.remove("hidden");
   if (msg.kind === "available-mac") {
-    text.textContent = `Вышла новая версия ${msg.version} — скачай свежий лаунчер`;
-    btn.textContent = "Скачать";
+    text.textContent = `Вышла новая версия ${msg.version}`;
+    btn.textContent = "Обновить";
     btn.classList.remove("hidden");
-    _updateMode = "web";
+    _updateMode = "mac-download";
   } else if (msg.kind === "downloading") {
     text.textContent = `Загрузка обновления ${msg.version}…`;
     btn.classList.add("hidden");
   } else if (msg.kind === "progress") {
-    text.textContent = `Загрузка обновления… ${msg.percent}%`;
+    text.textContent = `Скачивание обновления… ${msg.percent}%`;
     btn.classList.add("hidden");
   } else if (msg.kind === "ready") {
     text.textContent = `Обновление ${msg.version} готово`;
     btn.textContent = "Обновить и перезапустить";
     btn.classList.remove("hidden");
     _updateMode = "install";
+  } else if (msg.kind === "downloaded-mac") {
+    text.textContent = "Обновление скачано — перетащи GondurasMC в Applications и перезапусти";
+    btn.classList.add("hidden");
   }
 }
 
-function onUpdateBtn() {
-  if (_updateMode === "install") window.launcher.installUpdate();
-  else window.launcher.openWebsite();
+async function onUpdateBtn() {
+  if (_updateMode === "install") {
+    window.launcher.installUpdate();
+  } else if (_updateMode === "mac-download") {
+    $("update-btn").classList.add("hidden");
+    $("update-text").textContent = "Скачивание обновления…";
+    try { await window.launcher.downloadUpdate(); }
+    catch { $("update-text").textContent = "Не удалось скачать обновление."; }
+  }
 }
 
 // Новости тянутся с сайта (меняются централизованно, без релиза лаунчера).
