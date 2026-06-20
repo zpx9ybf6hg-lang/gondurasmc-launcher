@@ -105,7 +105,7 @@ public class GondurasMod {
             JsonObject it = el.getAsJsonObject();
             String id = it.get("id").getAsString();
             int count = it.get("count").getAsInt();
-            server.getCommands().performPrefixedCommand(src, "give " + name + " minecraft:" + id + " " + count);
+            server.getCommands().performPrefixedCommand(src, "give " + name + " " + id + " " + count);
             n++;
         }
         p.sendSystemMessage(Component.literal("§aВыдано предметов: " + n));

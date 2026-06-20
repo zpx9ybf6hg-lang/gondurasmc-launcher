@@ -108,28 +108,55 @@ const download = ({ user }) => `
   ${!user ? `<p class="sub">Сначала <a href="/register">зарегистрируйся</a>, чтобы войти в лаунчере.</p>` : ""}
 </section>`;
 
-const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {} } = {}) => {
-  const playedH = ((daily.played || 0) / 3600).toFixed(1);
+const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {}, balance = 0, rank = null, shop = [], privileges = [] } = {}) => {
   const needH = ((daily.need || 7200) / 3600);
+  const playedH = ((daily.played || 0) / 3600).toFixed(1);
   const cdH = Math.ceil((daily.cooldownMs || 0) / 3600000);
-  let dailyText, locked = !daily.eligible;
+  const locked = !daily.eligible;
+  let dailyText;
   if (daily.eligible) dailyText = "Доступен — открой!";
   else if ((daily.played || 0) < (daily.need || 7200)) dailyText = `Наиграй ${needH} ч сегодня · сейчас ${playedH} ч`;
   else dailyText = `Уже открыт · через ${cdH} ч`;
-  const entries = Object.entries(inv.items).sort((a, b) => b[1] - a[1]);
-  const invHtml = entries.length
-    ? entries.map(([id, c]) => {
+
+  const tex = (id) => esc((meta[id] || {}).tex || "");
+  const invEntries = Object.entries(inv.items).sort((a, b) => b[1] - a[1]);
+  const invHtml = invEntries.length
+    ? invEntries.map(([id, c]) => {
         const m = meta[id] || {};
         return `<div class="inv-tile" data-id="${esc(id)}" style="border-color:${esc(m.color)}">
-          <img src="/items/${esc(id)}.png" alt="${esc(m.name)}">
-          <span class="inv-name">${esc(m.name)}</span>
-          <span class="count">${c}</span></div>`;
+          <img src="/items/${tex(id)}.png" alt="${esc(m.name)}">
+          <span class="inv-name">${esc(m.name)}</span><span class="count">${c}</span></div>`;
       }).join("")
-    : `<p class="hint" id="inv-empty">Инвентарь пуст — открой кейс!</p>`;
+    : `<p class="hint" id="inv-empty">Пусто — открой кейс или купи в магазине.</p>`;
+
+  const shopHtml = shop.map((cat) => `
+    <h3 class="shop-cat">${esc(cat.name)}</h3>
+    <div class="shop-grid">
+      ${cat.items.map((it) => {
+        const m = meta[it.id] || {};
+        return `<div class="shop-card" style="border-color:${esc(m.color)}">
+          <img src="/items/${tex(it.id)}.png" alt="${esc(m.name)}">
+          <span class="shop-name">${esc(m.name)}${it.count > 1 ? " ×" + it.count : ""}</span>
+          <button class="btn primary shop-buy" data-id="${esc(it.id)}">${it.price} G</button>
+        </div>`;
+      }).join("")}
+    </div>`).join("");
+
+  const vipHtml = privileges.map((p) => `
+    <div class="vip-card" style="border-color:${esc(p.color)}">
+      <div class="vip-name" style="color:${esc(p.color)}">${esc(p.name)}</div>
+      <ul class="vip-perks">${p.perks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      ${rank === p.id
+        ? `<div class="vip-owned">Активна ✓</div>`
+        : `<button class="btn primary vip-buy" data-id="${esc(p.id)}" data-price="${p.price}">${p.price} G</button>`}
+    </div>`).join("");
 
   return `
 <section class="card">
-  <h2>Донат</h2>
+  <div class="donate-head">
+    <h2>Донат</h2>
+    <div class="balance">💰 <b id="bal">${balance}</b> G <button id="topup" class="btn ghost sm">+1000 (тест)</button></div>
+  </div>
   <div class="tabs">
     <button class="tab active" data-tab="cases">Кейсы</button>
     <button class="tab" data-tab="shop">Магазин</button>
@@ -137,7 +164,6 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {} } = {}
     <button class="tab" data-tab="inv">Инвентарь</button>
   </div>
 
-  <!-- КЕЙСЫ -->
   <div class="tab-panel" id="tab-cases">
     <p class="hint">Ежедневный кейс. Нужно наиграть ${needH} ч на сервере, открывается раз в 24 ч.</p>
     <div class="case-list">
@@ -147,47 +173,29 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {} } = {}
         <div class="crate-sub ${daily.eligible ? "ok" : ""}">${esc(dailyText)}</div>
       </button>
     </div>
-
     <div id="open-stage" class="hidden">
-      <div class="reel-window" id="reel-window">
-        <div class="reel-marker"></div>
-        <div class="reel" id="reel"></div>
-      </div>
+      <div class="reel-window" id="reel-window"><div class="reel-marker"></div><div class="reel" id="reel"></div></div>
       <button id="open-btn" class="btn primary big-open"${locked ? " disabled" : ""}>${locked ? "Недоступно" : "Открыть кейс"}</button>
       <p id="open-msg" class="hint" style="text-align:center;margin-top:10px"></p>
     </div>
   </div>
 
-  <!-- МАГАЗИН -->
   <div class="tab-panel hidden" id="tab-shop">
-    <p class="hint">Тестовый магазин (бесплатно). Жми «Получить» — предмет упадёт в инвентарь, потом забери в игре командой /claim.</p>
-    <div class="shop-grid">
-      ${Object.entries(meta).map(([id, m]) => `
-        <div class="shop-card" style="border-color:${esc(m.color)}">
-          <img src="/items/${esc(id)}.png" alt="${esc(m.name)}">
-          <span class="shop-name">${esc(m.name)}</span>
-          <button class="btn primary shop-buy" data-id="${esc(id)}">Получить</button>
-        </div>`).join("")}
-    </div>
+    <p class="hint">Покупай за G. Купленное падает в инвентарь — забери в игре командой /claim.</p>
+    ${shopHtml}
   </div>
 
-  <!-- ПРИВИЛЕГИИ -->
   <div class="tab-panel hidden" id="tab-vip">
-    <div class="vip-grid">
-      <div class="vip-card vip"><div class="vip-name">VIP</div><p class="hint">Скоро</p></div>
-      <div class="vip-card vipp"><div class="vip-name">VIP+</div><p class="hint">Скоро</p></div>
-      <div class="vip-card prem"><div class="vip-name">Premium</div><p class="hint">Скоро</p></div>
-    </div>
+    <p class="hint">Привилегии за G. Автовыдача прав на сервере — позже.</p>
+    <div class="vip-grid">${vipHtml}</div>
   </div>
 
-  <!-- ИНВЕНТАРЬ -->
   <div class="tab-panel hidden" id="tab-inv">
     <h3 class="inv-h">Твой инвентарь</h3>
     <div class="inv-grid" id="inv-grid">${invHtml}</div>
   </div>
 </section>
 
-<!-- Оверлей выигрыша -->
 <div id="win-overlay" class="win-overlay hidden">
   <div class="win-box" id="win-box">
     <div class="win-title">ВАМ ВЫПАЛО!</div>
@@ -207,146 +215,93 @@ const reelWindow = document.getElementById('reel-window');
 const openBtn = document.getElementById('open-btn');
 let _audio = null;
 function audioCtx(){ if(!_audio) _audio = new (window.AudioContext||window.webkitAudioContext)(); return _audio; }
+function img(id){ return '/items/' + ((META[id]||{}).tex||'') + '.png'; }
+function setBal(v){ document.getElementById('bal').textContent = v; }
 
-// Вкладки
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
-  ['cases','shop','vip','inv'].forEach(p =>
-    document.getElementById('tab-'+p).classList.toggle('hidden', p !== t.dataset.tab));
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x===t));
+  ['cases','shop','vip','inv'].forEach(p => document.getElementById('tab-'+p).classList.toggle('hidden', p!==t.dataset.tab));
 });
 
-// Выбор кейса → показать сцену открытия
+document.getElementById('topup').onclick = async () => {
+  try { const r = await fetch('/shop/topup',{method:'POST'}); const d = await r.json(); if(d.ok) setBal(d.balance); } catch(e){}
+};
+
+document.querySelectorAll('.shop-buy').forEach(b => b.onclick = async () => {
+  b.disabled = true; const old = b.textContent;
+  try {
+    const r = await fetch('/shop/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.id})});
+    const d = await r.json();
+    if(r.ok){ setBal(d.balance); addToInv(d.id, d.count); b.textContent='✓'; }
+    else b.textContent = d.error || 'Ошибка';
+  } catch(e){ b.textContent='Ошибка'; }
+  setTimeout(()=>{ b.textContent=old; b.disabled=false; }, 900);
+});
+
+document.querySelectorAll('.vip-buy').forEach(b => b.onclick = async () => {
+  b.disabled = true;
+  try {
+    const r = await fetch('/shop/privilege',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.id})});
+    const d = await r.json();
+    if(r.ok){ setBal(d.balance); b.outerHTML = '<div class="vip-owned">Активна ✓</div>'; }
+    else { b.textContent = d.error || 'Ошибка'; setTimeout(()=>{ b.textContent=b.dataset.price+' G'; b.disabled=false; },1000); }
+  } catch(e){ b.disabled=false; }
+});
+
 document.getElementById('crate').onclick = () => {
   document.getElementById('crate').classList.add('selected');
   document.getElementById('open-stage').classList.remove('hidden');
-  document.getElementById('open-stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('open-stage').scrollIntoView({behavior:'smooth',block:'center'});
 };
 
 function tileHtml(id){
-  const m = META[id] || {};
-  return '<div class="reel-tile rar-'+(m.rarity||'common')+'" style="border-color:'+(m.color||'#2a3146')+'">'
-    + '<img src="/items/'+id+'.png"><span>'+(m.name||id)+'</span></div>';
+  const m = META[id]||{};
+  return '<div class="reel-tile rar-'+(m.rarity||'common')+'" style="border-color:'+(m.color||'#2a3146')+'"><img src="'+img(id)+'"><span>'+(m.name||id)+'</span></div>';
 }
-
-// Магазин (бесплатно, тест): получить предмет → в инвентарь.
-document.querySelectorAll('.shop-buy').forEach((b) => b.onclick = async () => {
-  b.disabled = true;
-  try {
-    const r = await fetch('/shop/buy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: b.dataset.id }) });
-    const d = await r.json();
-    if (r.ok) { addToInv(d.id, d.count); b.textContent = '✓ +' + d.count; setTimeout(() => { b.textContent = 'Получить'; b.disabled = false; }, 700); }
-    else b.disabled = false;
-  } catch(e){ b.disabled = false; }
-});
-
-// Клик-тик при прохождении тайла под маркером (как в CS).
-function playTick(){
-  try {
-    const ctx = audioCtx(), o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'square'; o.frequency.value = 1100;
-    o.connect(g); g.connect(ctx.destination);
-    const t = ctx.currentTime;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.06, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    o.start(t); o.stop(t + 0.06);
-  } catch(e){}
-}
+function playTick(){ try{ const ctx=audioCtx(),o=ctx.createOscillator(),g=ctx.createGain(); o.type='square'; o.frequency.value=1100; o.connect(g); g.connect(ctx.destination); const t=ctx.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.06,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05); o.start(t); o.stop(t+0.06);}catch(e){} }
 
 const DUR = 6.0;
-openBtn.addEventListener('click', async () => {
+if (openBtn) openBtn.addEventListener('click', async () => {
   openBtn.disabled = true;
-  document.getElementById('open-msg').textContent = '';
+  document.getElementById('open-msg').textContent='';
   document.querySelector('.reel-tile.landed')?.classList.remove('landed');
   let data;
   try {
-    const r = await fetch('/donate/open', {method:'POST'});
+    const r = await fetch('/donate/open',{method:'POST'});
     data = await r.json();
-    if (!r.ok) { document.getElementById('open-msg').textContent = data.error || 'Недоступно'; openBtn.disabled = false; return; }
-  } catch(e){ openBtn.disabled = false; return; }
-
-  reel.style.transition = 'none';
-  reel.style.transform = 'translateX(0)';
+    if(!r.ok){ document.getElementById('open-msg').textContent = data.error||'Недоступно'; openBtn.disabled=false; return; }
+  } catch(e){ openBtn.disabled=false; return; }
+  reel.style.transition='none'; reel.style.transform='translateX(0)';
   reel.innerHTML = data.reel.map(tileHtml).join('');
   void reel.offsetWidth;
-
-  const jitter = Math.random()*36 - 18;
+  const jitter = Math.random()*36-18;
   const target = -(data.winnerIndex*TILE_W + TILE_W/2 - reelWindow.clientWidth/2) + jitter;
   reelWindow.classList.add('spinning');
-  reel.style.transition = 'transform ' + DUR + 's cubic-bezier(0.07,0.85,0.12,1)';
-  reel.style.transform = 'translateX('+target+'px)';
-
-  // Тики, синхронные с движением (через позицию трансформа).
-  let lastIdx = null, running = true;
-  (function track(){
-    if(!running) return;
-    const x = new DOMMatrixReadOnly(getComputedStyle(reel).transform).m41;
-    const idx = Math.round((-x + reelWindow.clientWidth/2 - TILE_W/2) / TILE_W);
-    if(idx !== lastIdx){ lastIdx = idx; playTick(); }
-    requestAnimationFrame(track);
-  })();
-
-  // Снять размытие ближе к концу (когда уже медленно).
-  setTimeout(() => reelWindow.classList.remove('spinning'), DUR*1000 - 900);
-
-  setTimeout(() => {
-    running = false;
-    const tile = reel.children[data.winnerIndex];
-    if(tile){ tile.classList.add('landed'); tile.style.boxShadow = '0 0 24px ' + (META[data.winner]||{}).color; }
-    setTimeout(() => { showWin(data.winner, data.qty); addToInv(data.winner, data.qty); openBtn.disabled = false; }, 450);
-  }, DUR*1000 + 60);
+  reel.style.transition='transform '+DUR+'s cubic-bezier(0.07,0.85,0.12,1)';
+  reel.style.transform='translateX('+target+'px)';
+  let lastIdx=null, running=true;
+  (function track(){ if(!running) return; const x=new DOMMatrixReadOnly(getComputedStyle(reel).transform).m41; const idx=Math.round((-x+reelWindow.clientWidth/2-TILE_W/2)/TILE_W); if(idx!==lastIdx){lastIdx=idx; playTick();} requestAnimationFrame(track); })();
+  setTimeout(()=>reelWindow.classList.remove('spinning'), DUR*1000-900);
+  setTimeout(()=>{ running=false; const tile=reel.children[data.winnerIndex]; if(tile){ tile.classList.add('landed'); tile.style.boxShadow='0 0 24px '+(META[data.winner]||{}).color; } setTimeout(()=>{ showWin(data.winner,data.qty); addToInv(data.winner,data.qty); openBtn.disabled=false; },450); }, DUR*1000+60);
 });
 
 function showWin(id, qty){
-  const m = META[id] || {};
-  const ov = document.getElementById('win-overlay');
-  const box = document.getElementById('win-box');
-  document.getElementById('win-img').src = '/items/'+id+'.png';
-  document.getElementById('win-name').textContent = m.name + ' ×' + qty;
-  const rar = document.getElementById('win-rar');
-  rar.textContent = m.rarityLabel; rar.style.color = m.color;
-  document.getElementById('win-glow').style.background =
-    'radial-gradient(circle, '+m.color+'88 0%, transparent 70%)';
-  box.style.borderColor = m.color;
-  box.className = 'win-box rar-' + (m.rarity || 'common');
-  ov.classList.remove('hidden');
-  playWinSound(m.rarity);
+  const m=META[id]||{}; const ov=document.getElementById('win-overlay'); const box=document.getElementById('win-box');
+  document.getElementById('win-img').src=img(id);
+  document.getElementById('win-name').textContent=m.name+' ×'+qty;
+  const rar=document.getElementById('win-rar'); rar.textContent=m.rarityLabel; rar.style.color=m.color;
+  document.getElementById('win-glow').style.background='radial-gradient(circle, '+m.color+'88 0%, transparent 70%)';
+  box.style.borderColor=m.color; box.className='win-box rar-'+(m.rarity||'common');
+  ov.classList.remove('hidden'); playWinSound(m.rarity);
 }
-document.getElementById('win-close').onclick = () =>
-  document.getElementById('win-overlay').classList.add('hidden');
-
-// Звук без файлов (Web Audio): чем реже — тем «богаче» фанфара.
-function playWinSound(rarity){
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const seq = rarity === 'legendary' ? [523,659,784,1047,1319]
-      : rarity === 'epic' ? [523,784,1047]
-      : rarity === 'rare' ? [523,659,784] : [523,659];
-    let t = ctx.currentTime;
-    seq.forEach((f) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = 'triangle'; o.frequency.value = f;
-      o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-      o.start(t); o.stop(t + 0.3); t += 0.12;
-    });
-  } catch(e){}
-}
+document.getElementById('win-close').onclick=()=>document.getElementById('win-overlay').classList.add('hidden');
+function playWinSound(rarity){ try{ const ctx=audioCtx(); const seq=rarity==='legendary'?[523,659,784,1047,1319]:rarity==='epic'?[523,784,1047]:rarity==='rare'?[523,659,784]:[523,659]; let t=ctx.currentTime; seq.forEach(f=>{ const o=ctx.createOscillator(),g=ctx.createGain(); o.type='triangle'; o.frequency.value=f; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.28); o.start(t); o.stop(t+0.3); t+=0.12; }); }catch(e){} }
 
 function addToInv(id, qty){
-  const grid = document.getElementById('inv-grid');
-  const empty = document.getElementById('inv-empty'); if(empty) empty.remove();
-  let tile = grid.querySelector('.inv-tile[data-id="'+id+'"]');
-  if(tile){ const c = tile.querySelector('.count'); c.textContent = (parseInt(c.textContent)||0) + qty; }
-  else {
-    const m = META[id] || {};
-    const d = document.createElement('div');
-    d.className = 'inv-tile'; d.dataset.id = id; d.style.borderColor = m.color;
-    d.innerHTML = '<img src="/items/'+id+'.png"><span class="inv-name">'+m.name+'</span><span class="count">'+qty+'</span>';
-    grid.prepend(d);
-  }
+  const grid=document.getElementById('inv-grid'); const empty=document.getElementById('inv-empty'); if(empty) empty.remove();
+  let tile=grid.querySelector('.inv-tile[data-id="'+id+'"]');
+  if(tile){ const c=tile.querySelector('.count'); c.textContent=(parseInt(c.textContent)||0)+qty; }
+  else { const m=META[id]||{}; const d=document.createElement('div'); d.className='inv-tile'; d.dataset.id=id; d.style.borderColor=m.color; d.innerHTML='<img src="'+img(id)+'"><span class="inv-name">'+m.name+'</span><span class="count">'+qty+'</span>'; grid.prepend(d); }
 }
 </script>`;
 };

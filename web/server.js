@@ -5,13 +5,15 @@ const fetch = require("node-fetch");
 const path = require("path");
 const V = require("./views");
 const cases = require("./cases");
+const shop = require("./shop");
 const inventory = require("./inventory");
+const { ITEMS, RARITY } = require("./items");
 
 function itemMeta() {
   const m = {};
-  for (const it of cases.ITEMS) {
-    const r = cases.RARITY[it.rarity];
-    m[it.id] = { name: it.name, color: r.color, rarityLabel: r.label, rarity: it.rarity };
+  for (const [id, it] of Object.entries(ITEMS)) {
+    const r = RARITY[it.rarity];
+    m[id] = { name: it.name, tex: it.tex, color: r.color, rarityLabel: r.label, rarity: it.rarity };
   }
   return m;
 }
@@ -161,11 +163,20 @@ app.get("/download", (req, res) =>
 // Ключ игрока = UUID игрока (его же знает сервер).
 const pid = (req) => req.session.user && req.session.user.playerUuid;
 
-// Донат / кейсы
+// Донат / кейсы / магазин
 app.get("/donate", requireAuth, (req, res) => {
-  const inv = inventory.get(pid(req));
-  const daily = inventory.dailyStatus(pid(req));
-  render(res, V.donate, { title: "Донат", user: req.session.user, inv, daily, meta: itemMeta() });
+  const uuid = pid(req);
+  render(res, V.donate, {
+    title: "Донат",
+    user: req.session.user,
+    inv: inventory.get(uuid),
+    daily: inventory.dailyStatus(uuid),
+    balance: inventory.getBalance(uuid),
+    rank: inventory.getRank(uuid),
+    meta: itemMeta(),
+    shop: shop.CATEGORIES,
+    privileges: shop.PRIVILEGES
+  });
 });
 
 // Ежедневный кейс: нужен 2ч наигранного сегодня + раз в 24ч.
@@ -189,13 +200,30 @@ app.post("/donate/open", requireAuth, (req, res) => {
   });
 });
 
-// Тестовый магазин: бесплатно кладём предмет в инвентарь (для проверки /claim).
+// Покупка предмета за G.
 app.post("/shop/buy", requireAuth, (req, res) => {
-  const id = req.body && req.body.id;
-  if (!cases.byId[id]) return res.status(400).json({ error: "Нет такого предмета" });
-  const count = Number(req.body.count) > 0 ? Math.min(Number(req.body.count), 64) : 1;
-  inventory.addItem(pid(req), id, count);
-  res.json({ ok: true, id, count });
+  const uuid = pid(req);
+  const entry = shop.priceMap[req.body && req.body.id];
+  if (!entry) return res.status(400).json({ error: "Нет такого товара" });
+  if (!inventory.spend(uuid, entry.price)) return res.status(402).json({ error: "Недостаточно G" });
+  inventory.addItem(uuid, entry.id, entry.count);
+  res.json({ ok: true, id: entry.id, count: entry.count, balance: inventory.getBalance(uuid) });
+});
+
+// Тестовое пополнение баланса (пока без реальной оплаты).
+app.post("/shop/topup", requireAuth, (req, res) => {
+  res.json({ ok: true, balance: inventory.addBalance(pid(req), 1000) });
+});
+
+// Покупка привилегии за G.
+app.post("/shop/privilege", requireAuth, (req, res) => {
+  const uuid = pid(req);
+  const p = shop.PRIVILEGES.find((x) => x.id === (req.body && req.body.id));
+  if (!p) return res.status(400).json({ error: "Нет привилегии" });
+  if (inventory.getRank(uuid) === p.id) return res.status(400).json({ error: "Уже куплено" });
+  if (!inventory.spend(uuid, p.price)) return res.status(402).json({ error: "Недостаточно G" });
+  inventory.setRank(uuid, p.id);
+  res.json({ ok: true, rank: p.id, balance: inventory.getBalance(uuid) });
 });
 
 // ── Server↔Web API (для мода на сервере), защита общим ключом ──

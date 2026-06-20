@@ -71,4 +71,27 @@ function markDailyOpen(uuid) {
   save(uuid, s);
 }
 
-module.exports = { get, addItem, takeAll, addPlaytime, dailyStatus, markDailyOpen, NEED_SECONDS };
+// ── Валюта G ──
+function getBalance(uuid) { return get(uuid).balance || 0; }
+function addBalance(uuid, amount) {
+  const s = get(uuid);
+  s.balance = (s.balance || 0) + amount;
+  save(uuid, s);
+  return s.balance;
+}
+function spend(uuid, amount) {
+  const s = get(uuid);
+  if ((s.balance || 0) < amount) return false;
+  s.balance -= amount;
+  save(uuid, s);
+  return true;
+}
+
+// ── Привилегия ──
+function getRank(uuid) { return get(uuid).rank || null; }
+function setRank(uuid, rank) { const s = get(uuid); s.rank = rank; save(uuid, s); }
+
+module.exports = {
+  get, addItem, takeAll, addPlaytime, dailyStatus, markDailyOpen, NEED_SECONDS,
+  getBalance, addBalance, spend, getRank, setRank
+};
