@@ -20,7 +20,4 @@ neoForge {
     }
 }
 
-dependencies {
-    // Gson предоставляется самим Minecraft в рантайме — только для компиляции.
-    compileOnly 'com.google.code.gson:gson:2.11.0'
-}
+// Gson уже на classpath через NeoForge/Minecraft — отдельная зависимость не нужна.
