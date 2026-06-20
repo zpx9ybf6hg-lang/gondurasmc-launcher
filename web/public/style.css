@@ -65,9 +65,10 @@ main { flex: 1; width: 100%; max-width: 900px; margin: 0 auto; padding: 40px 24p
 .hint { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
 .sub { color: var(--muted); font-size: 14px; margin-top: 16px; text-align: center; }
 
+.hidden { display: none !important; }
 label { display: block; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
-input[type=text], input[type=password], input[name=username] {
-  width: 100%; margin-top: 6px; padding: 12px; border-radius: 9px;
+input[type=text], input[type=password], input[type=email] {
+  display: block; width: 100%; margin-top: 6px; padding: 12px; border-radius: 9px;
   background: #11141d; border: 1px solid var(--line); color: var(--text); font-size: 15px;
 }
 input:focus { outline: none; border-color: var(--accent); }
