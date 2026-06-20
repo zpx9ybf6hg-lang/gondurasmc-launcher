@@ -3,7 +3,7 @@
 //
 // НАСТРОЙ ЭТИ ДВЕ СТРОКИ:
 const WEB = "https://gondurasmc-web.fly.dev";
-const KEY = "PASTE_SERVER_KEY_HERE"; // тот же SERVER_KEY, что задан на сайте (fly secrets)
+const KEY = "cae5b869435e52dfa08cc6db9e4211f25d2178231328128a";
 
 // ── Java-классы для HTTP (KubeJS) ──
 const URL = Java.loadClass("java.net.URL");
@@ -86,7 +86,7 @@ ServerEvents.tick((event) => {
     ticks = 0;
     server.players.forEach((p) => {
       const uuid = p.uuid.toString();
-      runAsync(() => { try { httpPost(WEB + "/api/playtime?key=" + KEY, { uuid: uuid, seconds: 60 }); } catch (e) {} });
+      runAsync(() => { try { httpPost(WEB + "/api/playtime?key=" + KEY, { uuid: uuid, seconds: 60 }); } catch (e) { } });
     });
   }
 });
