@@ -11,5 +11,7 @@ contextBridge.exposeInMainWorld("launcher", {
   openFolder: () => ipcRenderer.invoke("open-folder"),
   chooseFolder: () => ipcRenderer.invoke("choose-folder"),
   play: () => ipcRenderer.invoke("play"),
-  onStatus: (cb) => ipcRenderer.on("status", (_e, msg) => cb(msg))
+  onStatus: (cb) => ipcRenderer.on("status", (_e, msg) => cb(msg)),
+  onUpdate: (cb) => ipcRenderer.on("update", (_e, msg) => cb(msg)),
+  installUpdate: () => ipcRenderer.invoke("install-update")
 });

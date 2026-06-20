@@ -20,6 +20,21 @@ body {
   user-select: none;
 }
 .hidden { display: none !important; }
+
+/* ── Плашка обновления ── */
+.update-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff;
+  background: linear-gradient(135deg, #2f7bff, #7d63ff);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.update-btn {
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.5);
+  color: #fff; font: inherit; font-weight: 700; padding: 5px 14px;
+  border-radius: 8px; cursor: pointer;
+}
+.update-btn:hover { background: rgba(255,255,255,.3); }
 .muted { color: var(--muted); }
 img { -webkit-user-drag: none; }
 

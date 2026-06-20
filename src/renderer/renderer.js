@@ -38,8 +38,42 @@ async function init() {
     if (msg.stage === "started") $("progress-bar").style.width = "100%";
   });
 
+  // Проверщик обновлений лаунчера
+  window.launcher.onUpdate(handleUpdate);
+  $("update-btn").onclick = onUpdateBtn;
+
   if (CFG.current && CFG.current.name) showApp(CFG.current);
   else $("login-view").classList.remove("hidden");
+}
+
+let _updateMode = null;
+function handleUpdate(msg) {
+  const bar = $("update-bar");
+  const text = $("update-text");
+  const btn = $("update-btn");
+  bar.classList.remove("hidden");
+  if (msg.kind === "available-mac") {
+    text.textContent = `Вышла новая версия ${msg.version} — скачай свежий лаунчер`;
+    btn.textContent = "Скачать";
+    btn.classList.remove("hidden");
+    _updateMode = "web";
+  } else if (msg.kind === "downloading") {
+    text.textContent = `Загрузка обновления ${msg.version}…`;
+    btn.classList.add("hidden");
+  } else if (msg.kind === "progress") {
+    text.textContent = `Загрузка обновления… ${msg.percent}%`;
+    btn.classList.add("hidden");
+  } else if (msg.kind === "ready") {
+    text.textContent = `Обновление ${msg.version} готово`;
+    btn.textContent = "Обновить и перезапустить";
+    btn.classList.remove("hidden");
+    _updateMode = "install";
+  }
+}
+
+function onUpdateBtn() {
+  if (_updateMode === "install") window.launcher.installUpdate();
+  else window.launcher.openWebsite();
 }
 
 async function doLogin() {

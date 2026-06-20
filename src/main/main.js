@@ -100,20 +100,42 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
 }
 
+function sendUpdate(msg) {
+  if (win && !win.isDestroyed()) win.webContents.send("update", msg);
+}
+
+// Проверка обновлений лаунчера при запуске.
+function setupUpdater() {
+  const isMac = process.platform === "darwin";
+  // На macOS без подписи авто-применение невозможно — только уведомляем и шлём на сайт.
+  autoUpdater.autoDownload = !isMac;
+  autoUpdater.on("update-available", (info) => {
+    if (isMac) sendUpdate({ kind: "available-mac", version: info.version });
+    else sendUpdate({ kind: "downloading", version: info.version });
+  });
+  autoUpdater.on("download-progress", (p) =>
+    sendUpdate({ kind: "progress", percent: Math.round(p.percent) })
+  );
+  autoUpdater.on("update-downloaded", (info) =>
+    sendUpdate({ kind: "ready", version: info.version })
+  );
+  autoUpdater.on("error", () => {}); // в dev/без сети — молча
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
 app.whenReady().then(() => {
   createWindow();
-  // Автообновление лаунчера. На macOS без подписи авто-применение недоступно —
-  // проверяем только на Windows/Linux (на Mac обновление = заново скачать с сайта).
-  if (process.platform !== "darwin") {
-    autoUpdater.autoDownload = true;
-    autoUpdater.on("update-downloaded", () => {
-      if (win) win.webContents.send("status", { stage: "app-update", text: "Доступно обновление лаунчера — применится при перезапуске." });
-    });
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
-  }
+  win.webContents.once("did-finish-load", () => {
+    setTimeout(setupUpdater, 1500); // дать рендереру подписаться
+  });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// Применить обновление (Win/Linux): перезапуск с установкой.
+ipcMain.handle("install-update", () => {
+  autoUpdater.quitAndInstall();
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
