@@ -162,8 +162,10 @@ img { -webkit-user-drag: none; }
 .path { font-size: 12px; color: var(--muted); max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #panel-settings { overflow-y: auto; }
 #logout-btn { margin-top: 18px; }
-.news-item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.news-item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .news-item p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.news-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.news-date { color: var(--muted); font-size: 11px; flex: none; }
 
 /* ── Hero справа: 3D-скин на фоне ── */
 .hero {

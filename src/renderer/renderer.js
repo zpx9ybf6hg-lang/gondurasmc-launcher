@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let CFG = null;
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function init() {
   CFG = await window.launcher.getConfig();
@@ -15,6 +17,7 @@ async function init() {
   $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   initSettings();
+  loadNews();
 
   // Навигация
   document.querySelectorAll(".nav-item").forEach((b) =>
@@ -74,6 +77,26 @@ function handleUpdate(msg) {
 function onUpdateBtn() {
   if (_updateMode === "install") window.launcher.installUpdate();
   else window.launcher.openWebsite();
+}
+
+// Новости тянутся с сайта (меняются централизованно, без релиза лаунчера).
+async function loadNews() {
+  const list = $("news-list");
+  try {
+    const r = await fetch(`${CFG.websiteUrl}/news.json`, { cache: "no-store" });
+    const items = await r.json();
+    if (!Array.isArray(items) || !items.length) {
+      list.innerHTML = '<p class="hint">Пока новостей нет.</p>';
+      return;
+    }
+    list.innerHTML = items.map((n) => `
+      <div class="news-item">
+        <div class="news-head"><b>${esc(n.title)}</b><span class="news-date">${esc(n.date)}</span></div>
+        <p>${esc(n.body)}</p>
+      </div>`).join("");
+  } catch {
+    list.innerHTML = '<p class="hint">Не удалось загрузить новости.</p>';
+  }
 }
 
 async function doLogin() {

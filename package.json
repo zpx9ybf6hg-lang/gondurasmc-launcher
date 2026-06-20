@@ -1,6 +1,6 @@
 {
   "name": "gondurasmc-launcher",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "GondurasMC launcher: drasl auth, modpack sync, 3D skin, auto-update",
   "main": "src/main/main.js",
   "author": "",
