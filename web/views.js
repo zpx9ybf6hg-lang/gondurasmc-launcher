@@ -160,7 +160,15 @@ const donate = ({ inv = { items: {}, history: [] }, meta = {}, daily = {} } = {}
 
   <!-- МАГАЗИН -->
   <div class="tab-panel hidden" id="tab-shop">
-    <div class="soon"><h3>Магазин предметов</h3><p class="hint">Скоро: покупка ресурсов и предметов напрямую.</p></div>
+    <p class="hint">Тестовый магазин (бесплатно). Жми «Получить» — предмет упадёт в инвентарь, потом забери в игре командой /claim.</p>
+    <div class="shop-grid">
+      ${Object.entries(meta).map(([id, m]) => `
+        <div class="shop-card" style="border-color:${esc(m.color)}">
+          <img src="/items/${esc(id)}.png" alt="${esc(m.name)}">
+          <span class="shop-name">${esc(m.name)}</span>
+          <button class="btn primary shop-buy" data-id="${esc(id)}">Получить</button>
+        </div>`).join("")}
+    </div>
   </div>
 
   <!-- ПРИВИЛЕГИИ -->
@@ -219,6 +227,17 @@ function tileHtml(id){
   return '<div class="reel-tile rar-'+(m.rarity||'common')+'" style="border-color:'+(m.color||'#2a3146')+'">'
     + '<img src="/items/'+id+'.png"><span>'+(m.name||id)+'</span></div>';
 }
+
+// Магазин (бесплатно, тест): получить предмет → в инвентарь.
+document.querySelectorAll('.shop-buy').forEach((b) => b.onclick = async () => {
+  b.disabled = true;
+  try {
+    const r = await fetch('/shop/buy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: b.dataset.id }) });
+    const d = await r.json();
+    if (r.ok) { addToInv(d.id, d.count); b.textContent = '✓ +' + d.count; setTimeout(() => { b.textContent = 'Получить'; b.disabled = false; }, 700); }
+    else b.disabled = false;
+  } catch(e){ b.disabled = false; }
+});
 
 // Клик-тик при прохождении тайла под маркером (как в CS).
 function playTick(){

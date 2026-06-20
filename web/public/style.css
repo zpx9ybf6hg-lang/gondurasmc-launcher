@@ -221,3 +221,10 @@ footer { text-align: center; color: var(--muted); padding: 24px; font-size: 13px
 .crate.locked .crate-art { filter: grayscale(.55) brightness(.65); }
 .crate-lock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 40px; }
 .crate-sub.ok { color: var(--ok); font-weight: 700; }
+
+/* ── Тестовый магазин ── */
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.shop-card { background: #131c2e; border: 2px solid #2a3146; border-radius: 12px; padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.shop-card img { width: 44px; height: 44px; image-rendering: pixelated; }
+.shop-name { font-size: 12px; color: var(--muted); }
+.shop-buy { padding: 7px 14px; font-size: 13px; }

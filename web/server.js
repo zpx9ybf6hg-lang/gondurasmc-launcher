@@ -189,7 +189,16 @@ app.post("/donate/open", requireAuth, (req, res) => {
   });
 });
 
-// ── Server↔Web API (для KubeJS на сервере), защита общим ключом ──
+// Тестовый магазин: бесплатно кладём предмет в инвентарь (для проверки /claim).
+app.post("/shop/buy", requireAuth, (req, res) => {
+  const id = req.body && req.body.id;
+  if (!cases.byId[id]) return res.status(400).json({ error: "Нет такого предмета" });
+  const count = Number(req.body.count) > 0 ? Math.min(Number(req.body.count), 64) : 1;
+  inventory.addItem(pid(req), id, count);
+  res.json({ ok: true, id, count });
+});
+
+// ── Server↔Web API (для мода на сервере), защита общим ключом ──
 function requireKey(req, res, next) {
   const key = req.query.key || req.get("x-server-key");
   if (!process.env.SERVER_KEY || key !== process.env.SERVER_KEY)
