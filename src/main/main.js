@@ -11,6 +11,7 @@ const { ensureNeoForge } = require("./neoforge");
 const { launchGame } = require("./launch");
 const { writeServersDat } = require("./serverlist");
 const { pingServer } = require("./ping");
+const { resolveJava } = require("./javahelper");
 
 // Корень данных лаунчера по ОС.
 function dataRoot() {
@@ -284,9 +285,14 @@ ipcMain.handle("play", async (event) => {
   }
 
   const dir = gameDir();
+  const javaDir = path.join(dataRoot(), "java");
+
+  send({ stage: "java", text: "Проверяю Java..." });
+  const javaBin = await resolveJava(cfg.javaPath, javaDir, send);
+  send({ stage: "java", text: `Java: ${path.basename(path.dirname(javaBin))}` });
 
   send({ stage: "neoforge", text: "Проверяю NeoForge..." });
-  const neoforgeId = await ensureNeoForge(cfg.javaPath, dir, cfg.minecraft.loaderVersion, send);
+  const neoforgeId = await ensureNeoForge(javaBin, dir, cfg.minecraft.loaderVersion, send);
 
   // Обновление сборки: сверяем версию с сайтом, при отличии — качаем новый .mrpack.
   send({ stage: "modpack", text: "Проверяю версию сборки..." });
@@ -327,6 +333,7 @@ ipcMain.handle("play", async (event) => {
     gameDir: dir,
     auth: a,
     neoforgeId,
+    javaBin,
     onEvent: (ev) => {
       if (ev.type === "started") {
         send({ stage: "started", text: "Игра запущена! Загрузка модов (~30 сек)..." });

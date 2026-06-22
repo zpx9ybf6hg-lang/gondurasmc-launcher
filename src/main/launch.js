@@ -4,7 +4,6 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-const { resolveJava } = require("./javahelper");
 
 function osName() {
   if (process.platform === "win32") return "windows";
@@ -95,7 +94,7 @@ function expandArgs(args, vars) {
   return out;
 }
 
-async function launchGame({ cfg, gameDir, auth, neoforgeId, onEvent }) {
+async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) {
   const libDir = path.join(gameDir, "libraries");
   const vanillaVer = cfg.minecraft.version; // 1.21.1
   const vanilla = JSON.parse(
@@ -179,7 +178,6 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, onEvent }) {
     ...gameArgs
   ];
 
-  const javaBin = resolveJava(cfg.javaPath);
   onEvent && onEvent({ type: "debug", text: `Java bin: ${javaBin}\nArgs: ${args.join(" ")}` });
 
   return new Promise((resolve, reject) => {
