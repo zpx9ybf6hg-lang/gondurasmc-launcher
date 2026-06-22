@@ -316,6 +316,12 @@ ipcMain.handle("play", async (event) => {
 
   const runCfg = { ...cfg, memory: { min: cfg.memory.min, max: maxRam() } };
   send({ stage: "launch", text: `Запускаю игру под ником ${a.name} (${maxRam()} МБ)...` });
+
+  // Лог-файл — пишем stderr/stdout Java, чтобы диагностировать «код 1» на Windows.
+  const logPath = path.join(dataRoot(), "launcher.log");
+  const logStream = fs.createWriteStream(logPath, { flags: "w" });
+  const writeLog = (text) => { try { logStream.write(text); } catch {} };
+
   await launchGame({
     cfg: runCfg,
     gameDir: dir,
@@ -325,9 +331,18 @@ ipcMain.handle("play", async (event) => {
       if (ev.type === "started") {
         send({ stage: "started", text: "Игра запущена! Загрузка модов (~30 сек)..." });
       } else if (ev.type === "close") {
-        send({ stage: "closed", text: `Игра закрыта (код ${ev.code})` });
+        logStream.end();
+        if (ev.code !== 0) {
+          // Показываем путь к логу при ошибке.
+          send({ stage: "closed", text: `Игра завершилась с кодом ${ev.code}. Лог: ${logPath}` });
+        } else {
+          send({ stage: "closed", text: `Игра закрыта (код ${ev.code})` });
+        }
       } else if (ev.type === "debug") {
+        writeLog(ev.text + "\n");
         send({ stage: "debug", text: ev.text });
+      } else if (ev.type === "data") {
+        writeLog(ev.text);
       }
     }
   });

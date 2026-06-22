@@ -180,14 +180,17 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, onEvent }) {
   ];
 
   const javaBin = resolveJava(cfg.javaPath);
-  onEvent && onEvent({ type: "debug", text: `Java: ${javaBin}` });
+  onEvent && onEvent({ type: "debug", text: `Java bin: ${javaBin}\nArgs: ${args.join(" ")}` });
 
   return new Promise((resolve, reject) => {
     const child = spawn(javaBin, args, { cwd: gameDir });
     onEvent && onEvent({ type: "started" });
     child.stdout.on("data", (d) => onEvent && onEvent({ type: "data", text: String(d) }));
     child.stderr.on("data", (d) => onEvent && onEvent({ type: "data", text: String(d) }));
-    child.on("error", reject);
+    child.on("error", (err) => {
+      onEvent && onEvent({ type: "data", text: `Spawn error: ${err.message}\n` });
+      reject(err);
+    });
     child.on("close", (code) => {
       onEvent && onEvent({ type: "close", code });
       resolve(code);
