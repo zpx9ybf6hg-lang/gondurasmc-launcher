@@ -41,7 +41,7 @@ module.exports = {
   // Open Parties and Claims нужен на клиенте для отображения приватов.
   extraMods: [
     {
-      filename: "open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
+      name: "open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
       url: "https://cdn.modrinth.com/data/gF3BGWvG/versions/N11y4hWk/open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
       sha1: "72a83713417b82bcd66f4b1fbe0adaa5f43e363b"
     }
