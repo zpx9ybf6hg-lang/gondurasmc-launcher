@@ -148,10 +148,24 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) 
     jvmNeo[pIndex + 1].split(sep).forEach((p) => modulePathSet.add(path.resolve(p)));
   }
 
+  // NeoForge earlydisplay (экран загрузки) запускается в именованном модульном слое
+  // MC-BOOTSTRAP, который не может читать безымянный модуль (classpath). Поэтому
+  // LWJGL-jar (не native) добавляем на module path — тогда earlydisplay видит их
+  // через именованные модули, а classpath-код по-прежнему может их читать.
+  const allLibs = collectLibraries(libDir, vanilla, neoforge);
+  for (const p of allLibs) {
+    const base = path.basename(p);
+    if (p.replace(/\\/g, "/").includes("/org/lwjgl/") && !base.includes("natives")) {
+      modulePathSet.add(path.resolve(p));
+    }
+  }
+  // Обновляем аргумент -p с расширенным списком.
+  if (pIndex !== -1) {
+    jvmNeo[pIndex + 1] = [...modulePathSet].join(sep);
+  }
+
   // Classpath = все библиотеки, кроме модульных, + клиентский jar.
-  const libs = collectLibraries(libDir, vanilla, neoforge).filter(
-    (p) => !modulePathSet.has(path.resolve(p))
-  );
+  const libs = allLibs.filter((p) => !modulePathSet.has(path.resolve(p)));
   const classpath = [...libs, clientJar].join(sep);
   vars.classpath = classpath;
 
