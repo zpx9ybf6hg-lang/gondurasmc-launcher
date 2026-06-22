@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const fetch = require("node-fetch");
+const { resolveJava } = require("./javahelper");
 
 function versionId(loaderVersion) {
   return `neoforge-${loaderVersion}`;
@@ -36,7 +37,7 @@ async function downloadInstaller(loaderVersion, dest) {
 function runInstaller(javaPath, installerJar, gameDir) {
   return new Promise((resolve, reject) => {
     const args = ["-jar", installerJar, "--install-client", gameDir];
-    const child = spawn(javaPath || "java", args, { cwd: gameDir });
+    const child = spawn(resolveJava(javaPath), args, { cwd: gameDir });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));

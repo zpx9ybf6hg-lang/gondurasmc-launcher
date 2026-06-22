@@ -34,10 +34,18 @@ module.exports = {
 
   // Моды, которые лаунчер НЕ ставит и удаляет, если они есть (подстроки имени файла).
   // CustomSkinLoader больше не нужен — скины отдаёт drasl нативно для всех.
-  excludeMods: ["essential", "indrec", "customskinloader"],
+  // health-damage-hud конфликтует с другим HUD-модом.
+  excludeMods: ["essential", "indrec", "customskinloader", "health-damage-hud"],
 
-  // Доп-моды поверх модпака (клиентские).
-  extraMods: [],
+  // Доп-моды поверх модпака (скачиваются автоматически, если отсутствуют).
+  // Open Parties and Claims нужен на клиенте для отображения приватов.
+  extraMods: [
+    {
+      filename: "open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
+      url: "https://cdn.modrinth.com/data/gF3BGWvG/versions/N11y4hWk/open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
+      sha1: "72a83713417b82bcd66f4b1fbe0adaa5f43e363b"
+    }
+  ],
 
   // Память (МБ). Для Create-сборки лучше не меньше 4 ГБ.
   memory: { min: 2048, max: 6144 },

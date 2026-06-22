@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { resolveJava } = require("./javahelper");
 
 function osName() {
   if (process.platform === "win32") return "windows";
@@ -11,11 +12,17 @@ function osName() {
   return "linux";
 }
 
-// Путь к authlib-injector.jar (dev: vendor/, билд: resources/).
+// Путь к authlib-injector.jar. В собранном .app он лежит в Resources/vendor/
+// (extraResources сохраняет относительный путь "vendor/..."), в dev — в vendor/.
 function authlibInjectorPath() {
-  const packed = path.join(process.resourcesPath || "", "authlib-injector.jar");
-  if (process.resourcesPath && fs.existsSync(packed)) return packed;
-  return path.join(__dirname, "..", "..", "vendor", "authlib-injector.jar");
+  const candidates = [];
+  if (process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, "vendor", "authlib-injector.jar"));
+    candidates.push(path.join(process.resourcesPath, "authlib-injector.jar"));
+  }
+  candidates.push(path.join(__dirname, "..", "..", "vendor", "authlib-injector.jar"));
+  for (const c of candidates) if (fs.existsSync(c)) return c;
+  return candidates[0];
 }
 
 // Проверка rules (os/arch) у аргументов и библиотек.
@@ -172,8 +179,8 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, onEvent }) {
     ...gameArgs
   ];
 
-  const javaBin = cfg.javaPath || "java";
-  onEvent && onEvent({ type: "debug", text: `Команда: ${javaBin} ${args.join(" ")}` });
+  const javaBin = resolveJava(cfg.javaPath);
+  onEvent && onEvent({ type: "debug", text: `Java: ${javaBin}` });
 
   return new Promise((resolve, reject) => {
     const child = spawn(javaBin, args, { cwd: gameDir });
