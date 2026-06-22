@@ -3,10 +3,23 @@
 // вообще не установлена — поэтому качаем свою JRE в dataRoot/java/.
 const fs = require("fs");
 const path = require("path");
-const { execFileSync, spawn } = require("child_process");
+const { execFileSync, spawnSync } = require("child_process");
 const fetch = require("node-fetch");
 
 const JAVA_MAJOR = 21;
+
+// Возвращает major-версию Java по пути к бинарнику (0 если не удалось определить).
+// java -version пишет в stderr: `openjdk version "21.0.3"` или `java version "1.8.0_xxx"`.
+function getJavaMajorVersion(javaBin) {
+  try {
+    const r = spawnSync(javaBin, ["-version"], { encoding: "utf8", timeout: 5000 });
+    const out = (r.stderr || "") + (r.stdout || "");
+    const m = out.match(/version "(\d+)(?:\.(\d+))?/);
+    if (!m) return 0;
+    const n = parseInt(m[1], 10);
+    return n === 1 ? parseInt(m[2] || "0", 10) : n; // "1.8" → 8, "21" → 21
+  } catch { return 0; }
+}
 
 function adoptiumMeta() {
   const p = process.platform;
@@ -102,50 +115,53 @@ async function downloadJava(javaDir, report) {
   return javaBin;
 }
 
-// Основная функция: вернуть путь к java (из конфига / системы / скачанной).
-// Если Java нет нигде — вызвать downloadJava и вернуть её путь.
-async function resolveJava(configured, javaDir, report) {
-  // 1. Явно указанный путь.
-  if (configured && fs.existsSync(configured)) return configured;
+// Проверить кандидата: существует и версия >= JAVA_MAJOR.
+function isGoodJava(javaBin) {
+  if (!fs.existsSync(javaBin)) return false;
+  return getJavaMajorVersion(javaBin) >= JAVA_MAJOR;
+}
 
-  // 2. Ранее скачанная нами JRE.
+// Основная функция: вернуть путь к java 21+ (из конфига / скачанной / системы).
+// Если нигде нет Java 21+ — скачивает автоматически.
+async function resolveJava(configured, javaDir, report) {
+  // 1. Явно указанный путь в конфиге.
+  if (configured && isGoodJava(configured)) return configured;
+
+  // 2. Ранее скачанная нами JRE (всегда 21).
   const bundled = findJavaInDir(javaDir);
-  if (bundled) return bundled;
+  if (bundled && fs.existsSync(bundled)) return bundled;
 
   const exe = process.platform === "win32" ? "java.exe" : "java";
 
-  // 3. JAVA_HOME.
+  // 3. JAVA_HOME — только если там Java 21+.
   if (process.env.JAVA_HOME) {
     const j = path.join(process.env.JAVA_HOME, "bin", exe);
-    if (fs.existsSync(j)) return j;
+    if (isGoodJava(j)) return j;
   }
 
-  // 4. Стандартные пути macOS.
+  // 4. Стандартные пути macOS — только Java 21+.
   if (process.platform === "darwin") {
     try {
       const home = execFileSync("/usr/libexec/java_home", ["-v", "21"], { encoding: "utf8" }).trim();
       const j = path.join(home, "bin", "java");
-      if (fs.existsSync(j)) return j;
+      if (isGoodJava(j)) return j;
     } catch {}
     for (const c of ["/opt/homebrew/bin/java", "/usr/local/bin/java", "/usr/bin/java"]) {
-      if (fs.existsSync(c)) return c;
+      if (isGoodJava(c)) return c;
     }
   }
 
-  // 5. Стандартные пути Linux.
+  // 5. Стандартные пути Linux — только Java 21+.
   if (process.platform === "linux") {
     for (const c of ["/usr/bin/java", "/usr/local/bin/java"]) {
-      if (fs.existsSync(c)) return c;
+      if (isGoodJava(c)) return c;
     }
   }
 
-  // 6. Системный PATH (последний шанс без скачивания).
-  try {
-    execFileSync(exe, ["-version"], { stdio: "ignore" });
-    return exe;
-  } catch {}
+  // 6. PATH — только если Java 21+.
+  if (getJavaMajorVersion(exe) >= JAVA_MAJOR) return exe;
 
-  // 7. Ничего не нашли — скачиваем.
+  // 7. Java 21 не найдена — скачиваем.
   return await downloadJava(javaDir, report);
 }
 
