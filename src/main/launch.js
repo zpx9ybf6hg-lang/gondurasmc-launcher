@@ -148,18 +148,6 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) 
     jvmNeo[pIndex + 1].split(sep).forEach((p) => modulePathSet.add(path.resolve(p)));
   }
 
-  // LWJGL — Multi-Release jar без Automatic-Module-Name. SecureJarHandler на Windows
-  // некорректно обрабатывает такие jar'ы: создаёт пустой модуль без экспортов, из-за
-  // чего fml_earlydisplay не находит org.lwjgl.system.Struct и падает.
-  // Решение: добавить "lwjgl" в -DignoreList → SecureJarHandler оставляет LWJGL
-  // в unnamed module (classpath). Плюс --add-reads разрешает fml_earlydisplay читать
-  // unnamed module. Тогда earlydisplay нормально загружает DisplayWindow.
-  const ignoreIdx = jvmNeo.findIndex((a) => typeof a === "string" && a.startsWith("-DignoreList="));
-  if (ignoreIdx !== -1) {
-    jvmNeo[ignoreIdx] += ",lwjgl";
-  }
-  jvmNeo.push("--add-reads", "fml_earlydisplay=ALL-UNNAMED");
-
   // Classpath = все библиотеки, кроме модульных, + клиентский jar.
   const allLibs = collectLibraries(libDir, vanilla, neoforge);
   const libs = allLibs.filter((p) => !modulePathSet.has(path.resolve(p)));

@@ -320,6 +320,26 @@ ipcMain.handle("play", async (event) => {
   // Сервер всегда в списке «Сетевая игра».
   writeServersDat(dir, [{ name: cfg.serverName, ip: `${cfg.serverHost}:${cfg.serverPort}`, acceptTextures: 1 }]);
 
+  // Windows: отключаем NeoForge early display (fancy loading screen), потому что он
+  // падает при загрузке LWJGL через SecureJarHandler в кастомном лаунчере.
+  // earlyWindowControl=false — официальный фикс NeoForge (neoforged.net/meta/displayerrors/).
+  if (process.platform === "win32") {
+    const cfgDir = path.join(dir, "config");
+    const fmlToml = path.join(cfgDir, "fml.toml");
+    fs.mkdirSync(cfgDir, { recursive: true });
+    if (fs.existsSync(fmlToml)) {
+      let txt = fs.readFileSync(fmlToml, "utf8");
+      if (/earlyWindowControl\s*=\s*true/.test(txt)) {
+        txt = txt.replace(/earlyWindowControl\s*=\s*true/, "earlyWindowControl = false");
+        fs.writeFileSync(fmlToml, txt);
+      } else if (!/earlyWindowControl/.test(txt)) {
+        fs.appendFileSync(fmlToml, "\nearlyWindowControl = false\n");
+      }
+    } else {
+      fs.writeFileSync(fmlToml, "[client]\n\tearlyWindowControl = false\n");
+    }
+  }
+
   const runCfg = { ...cfg, memory: { min: cfg.memory.min, max: maxRam() } };
   send({ stage: "launch", text: `Запускаю игру под ником ${a.name} (${maxRam()} МБ)...` });
 
