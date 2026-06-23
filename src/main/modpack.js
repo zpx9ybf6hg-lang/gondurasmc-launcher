@@ -115,6 +115,17 @@ async function installModpack(mrpackPath, gameDir, report, opts = {}) {
   }
 
   // 2. overrides/ и client-overrides/ поверх инстанса.
+  // Пропускаем при простой синхронизации модов (skipOverrides), чтобы не затирать
+  // конфиги/настройки игрока при каждом запуске.
+  if (opts.skipOverrides) {
+    log("Моды синхронизированы.");
+    return {
+      name: index.name,
+      version: index.versionId,
+      mods: files.length,
+      dependencies: index.dependencies
+    };
+  }
   const tmp = path.join(gameDir, ".mrpack_extract");
   fs.rmSync(tmp, { recursive: true, force: true });
   zip.extractAllTo(tmp, true);

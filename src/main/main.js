@@ -367,7 +367,14 @@ ipcMain.handle("play", async (event) => {
     });
     saveInstalled({ modpackVersion: remote ? remote.version : "bundled", ...info });
   } else {
-    send({ stage: "modpack", text: "Сборка актуальна." });
+    // Версия не менялась — лёгкая синхронизация модов (докачать недостающие из сборки,
+    // напр. после смены версии мода в config), без перезаписи конфигов игрока.
+    send({ stage: "modpack", text: "Синхронизирую моды..." });
+    await installModpack(mrpath, dir, send, {
+      excludeMods: cfg.excludeMods,
+      extraMods: cfg.extraMods,
+      skipOverrides: true
+    });
   }
   await enforceMods(dir, { excludeMods: cfg.excludeMods, extraMods: cfg.extraMods }, send);
 

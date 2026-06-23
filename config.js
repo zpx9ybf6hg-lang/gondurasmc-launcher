@@ -35,8 +35,11 @@ module.exports = {
   // Моды, которые лаунчер НЕ ставит и удаляет, если они есть (подстроки имени файла).
   // CustomSkinLoader больше не нужен — скины отдаёт drasl нативно для всех.
   // health-damage-hud конфликтует с другим HUD-модом.
-  // sodium-neoforge-0.8.x-beta/alpha падает на Windows (NoClassDefFoundError lwjgl) — заменяем на 0.6.13 stable.
-  excludeMods: ["essential", "indrec", "customskinloader", "health-damage-hud", "sodium-neoforge-0.8"],
+  // Sodium 0.8.12-beta из модпака теперь работает (краш был из-за недокачанных
+  // LWJGL-библиотек, исправлено в ensureLibraries) и нужен модам Sable/Veil.
+  // sodium-neoforge-0.6.13 — наш старый временный мод, удаляем у тех, у кого он остался
+  // (заменён обратно на 0.8.12-beta из модпака).
+  excludeMods: ["essential", "indrec", "customskinloader", "health-damage-hud", "sodium-neoforge-0.6.13"],
 
   // Доп-моды поверх модпака (скачиваются автоматически, если отсутствуют).
   extraMods: [
@@ -44,11 +47,6 @@ module.exports = {
       name: "open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
       url: "https://cdn.modrinth.com/data/gF3BGWvG/versions/N11y4hWk/open-parties-and-claims-neoforge-1.21.1-0.27.5.jar",
       sha1: "72a83713417b82bcd66f4b1fbe0adaa5f43e363b"
-    },
-    {
-      name: "sodium-neoforge-0.6.13+mc1.21.1.jar",
-      url: "https://cdn.modrinth.com/data/AANobbMI/versions/Pb3OXVqC/sodium-neoforge-0.6.13%2Bmc1.21.1.jar",
-      sha1: "38af70fa4dc4b2aaac636e92fdba3bedd5a025e1"
     }
   ],
 
