@@ -140,18 +140,15 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) 
     launcher_version: "1.0"
   };
 
-  // Модульный путь NeoForge (из его jvm-аргументов) — эти jar НЕ кладём в classpath.
+  // Модульный путь NeoForge (из его jvm-аргументов).
+  // ВАЖНО: jары с module path кладём ТАКЖЕ в classpath — так делает Prism Launcher.
+  // Это позволяет ModuleClassLoader делегировать загрузку классов через app class loader,
+  // который видит весь classpath включая LWJGL. Без этого earlydisplay падает на Windows.
   const jvmNeo = expandArgs(neoforge.arguments.jvm, vars);
-  const modulePathSet = new Set();
-  const pIndex = jvmNeo.indexOf("-p");
-  if (pIndex !== -1 && jvmNeo[pIndex + 1]) {
-    jvmNeo[pIndex + 1].split(sep).forEach((p) => modulePathSet.add(path.resolve(p)));
-  }
 
-  // Classpath = все библиотеки, кроме модульных, + клиентский jar.
+  // Classpath = ВСЕ библиотеки + клиентский jar (включая те что на module path).
   const allLibs = collectLibraries(libDir, vanilla, neoforge);
-  const libs = allLibs.filter((p) => !modulePathSet.has(path.resolve(p)));
-  const classpath = [...libs, clientJar].join(sep);
+  const classpath = [...allLibs, clientJar].join(sep);
   vars.classpath = classpath;
 
   // Сборка финальной команды.
