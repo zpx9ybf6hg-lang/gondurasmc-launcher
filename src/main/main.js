@@ -73,6 +73,54 @@ async function downloadFile(url, dest) {
   fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
 }
 
+// Скачать Minecraft assets (индекс + объекты) если отсутствуют.
+async function ensureAssets(gameDir, vanillaVersion, report) {
+  const log = (t) => report({ stage: "assets", text: t });
+  const vanillaJson = JSON.parse(
+    fs.readFileSync(path.join(gameDir, "versions", vanillaVersion, `${vanillaVersion}.json`), "utf8")
+  );
+  const assetId = vanillaJson.assetIndex.id;
+  const assetsDir = path.join(gameDir, "assets");
+  const indexesDir = path.join(assetsDir, "indexes");
+  const objectsDir = path.join(assetsDir, "objects");
+  const indexFile = path.join(indexesDir, `${assetId}.json`);
+
+  fs.mkdirSync(indexesDir, { recursive: true });
+  fs.mkdirSync(objectsDir, { recursive: true });
+
+  if (!fs.existsSync(indexFile)) {
+    log("Скачиваю индекс ассетов...");
+    await downloadFile(vanillaJson.assetIndex.url, indexFile);
+  }
+
+  const index = JSON.parse(fs.readFileSync(indexFile, "utf8"));
+  const all = Object.values(index.objects);
+  const missing = all.filter(({ hash }) =>
+    !fs.existsSync(path.join(objectsDir, hash.slice(0, 2), hash))
+  );
+  if (missing.length === 0) return;
+
+  log(`Скачиваю ассеты (${missing.length} файлов)...`);
+  let done = 0;
+  const BATCH = 30;
+  for (let i = 0; i < missing.length; i += BATCH) {
+    await Promise.all(
+      missing.slice(i, i + BATCH).map(async ({ hash }) => {
+        const dir = path.join(objectsDir, hash.slice(0, 2));
+        fs.mkdirSync(dir, { recursive: true });
+        const url = `https://resources.download.minecraft.net/${hash.slice(0, 2)}/${hash}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Asset ${hash}: HTTP ${res.status}`);
+        fs.writeFileSync(path.join(dir, hash), Buffer.from(await res.arrayBuffer()));
+        done++;
+        if (done % 200 === 0 || done === missing.length)
+          log(`Скачиваю ассеты ${done}/${missing.length}...`);
+      })
+    );
+  }
+  log("Ассеты скачаны.");
+}
+
 // Проверка версии модпака на сайте (единое обновление для всех).
 async function remoteModpack() {
   try {
@@ -293,6 +341,9 @@ ipcMain.handle("play", async (event) => {
 
   send({ stage: "neoforge", text: "Проверяю NeoForge..." });
   const neoforgeId = await ensureNeoForge(javaBin, dir, cfg.minecraft.loaderVersion, send);
+
+  send({ stage: "assets", text: "Проверяю ассеты..." });
+  await ensureAssets(dir, cfg.minecraft.version, send);
 
   // Обновление сборки: сверяем версию с сайтом, при отличии — качаем новый .mrpack.
   send({ stage: "modpack", text: "Проверяю версию сборки..." });
