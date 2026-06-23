@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const fetch = require("node-fetch");
 
 function osName() {
   if (process.platform === "win32") return "windows";
@@ -92,6 +93,56 @@ function expandArgs(args, vars) {
     }
   }
   return out;
+}
+
+// Скачать все библиотеки (ваниль + NeoForge), которых нет на диске.
+// NeoForge-инсталлятор кладёт не все ванильные либы (netty и пр.). Если файла нет,
+// BootstrapLauncher молча его пропускает → модуль (напр. io.netty.buffer) не создаётся
+// → краш "Module ... not found, required by ...". Поэтому докачиваем явно.
+async function ensureLibraries(gameDir, neoforgeId, vanillaVersion, report) {
+  const log = (text) => report && report({ stage: "libraries", text });
+  const libDir = path.join(gameDir, "libraries");
+  const vanilla = JSON.parse(
+    fs.readFileSync(path.join(gameDir, "versions", vanillaVersion, `${vanillaVersion}.json`), "utf8")
+  );
+  const neoforge = JSON.parse(
+    fs.readFileSync(path.join(gameDir, "versions", neoforgeId, `${neoforgeId}.json`), "utf8")
+  );
+
+  // Собираем уникальные библиотеки (как в collectLibraries), но с URL для скачивания.
+  const map = new Map();
+  const add = (libs) => {
+    for (const lib of libs || []) {
+      if (!rulesAllow(lib.rules)) continue;
+      if (!lib.name) continue;
+      const art = lib.downloads && lib.downloads.artifact;
+      const dest = art && art.path ? path.join(libDir, art.path) : path.join(libDir, mavenToPath(lib.name));
+      const url = art && art.url ? art.url : null;
+      map.set(mavenKey(lib.name), { dest, url });
+    }
+  };
+  add(vanilla.libraries);
+  add(neoforge.libraries);
+
+  const missing = [...map.values()].filter((e) => e.url && !fs.existsSync(e.dest));
+  if (missing.length === 0) return;
+
+  log(`Скачиваю библиотеки (${missing.length})...`);
+  let done = 0;
+  const BATCH = 16;
+  for (let i = 0; i < missing.length; i += BATCH) {
+    await Promise.all(
+      missing.slice(i, i + BATCH).map(async ({ dest, url }) => {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        const res = await fetch(url, { redirect: "follow" });
+        if (!res.ok) throw new Error(`Библиотека ${path.basename(dest)}: HTTP ${res.status}`);
+        fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+        done++;
+        if (done % 20 === 0 || done === missing.length) log(`Скачиваю библиотеки ${done}/${missing.length}...`);
+      })
+    );
+  }
+  log("Библиотеки скачаны.");
 }
 
 async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) {
@@ -192,4 +243,4 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) 
   });
 }
 
-module.exports = { launchGame };
+module.exports = { launchGame, ensureLibraries };

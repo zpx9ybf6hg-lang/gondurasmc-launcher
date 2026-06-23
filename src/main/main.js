@@ -8,7 +8,7 @@ const cfg = require("../../config");
 const auth = require("./auth");
 const { installModpack, enforceMods } = require("./modpack");
 const { ensureNeoForge } = require("./neoforge");
-const { launchGame } = require("./launch");
+const { launchGame, ensureLibraries } = require("./launch");
 const { writeServersDat } = require("./serverlist");
 const { pingServer } = require("./ping");
 const { resolveJava } = require("./javahelper");
@@ -341,6 +341,9 @@ ipcMain.handle("play", async (event) => {
 
   send({ stage: "neoforge", text: "Проверяю NeoForge..." });
   const neoforgeId = await ensureNeoForge(javaBin, dir, cfg.minecraft.loaderVersion, send);
+
+  send({ stage: "libraries", text: "Проверяю библиотеки..." });
+  await ensureLibraries(dir, neoforgeId, cfg.minecraft.version, send);
 
   send({ stage: "assets", text: "Проверяю ассеты..." });
   await ensureAssets(dir, cfg.minecraft.version, send);
