@@ -148,23 +148,20 @@ async function launchGame({ cfg, gameDir, auth, neoforgeId, javaBin, onEvent }) 
     jvmNeo[pIndex + 1].split(sep).forEach((p) => modulePathSet.add(path.resolve(p)));
   }
 
-  // NeoForge earlydisplay (экран загрузки) запускается в именованном модульном слое
-  // MC-BOOTSTRAP, который не может читать безымянный модуль (classpath). Поэтому
-  // LWJGL-jar (не native) добавляем на module path — тогда earlydisplay видит их
-  // через именованные модули, а classpath-код по-прежнему может их читать.
-  const allLibs = collectLibraries(libDir, vanilla, neoforge);
-  for (const p of allLibs) {
-    const base = path.basename(p);
-    if (p.replace(/\\/g, "/").includes("/org/lwjgl/") && !base.includes("natives")) {
-      modulePathSet.add(path.resolve(p));
-    }
+  // LWJGL — Multi-Release jar без Automatic-Module-Name. SecureJarHandler на Windows
+  // некорректно обрабатывает такие jar'ы: создаёт пустой модуль без экспортов, из-за
+  // чего fml_earlydisplay не находит org.lwjgl.system.Struct и падает.
+  // Решение: добавить "lwjgl" в -DignoreList → SecureJarHandler оставляет LWJGL
+  // в unnamed module (classpath). Плюс --add-reads разрешает fml_earlydisplay читать
+  // unnamed module. Тогда earlydisplay нормально загружает DisplayWindow.
+  const ignoreIdx = jvmNeo.findIndex((a) => typeof a === "string" && a.startsWith("-DignoreList="));
+  if (ignoreIdx !== -1) {
+    jvmNeo[ignoreIdx] += ",lwjgl";
   }
-  // Обновляем аргумент -p с расширенным списком.
-  if (pIndex !== -1) {
-    jvmNeo[pIndex + 1] = [...modulePathSet].join(sep);
-  }
+  jvmNeo.push("--add-reads", "fml_earlydisplay=ALL-UNNAMED");
 
   // Classpath = все библиотеки, кроме модульных, + клиентский jar.
+  const allLibs = collectLibraries(libDir, vanilla, neoforge);
   const libs = allLibs.filter((p) => !modulePathSet.has(path.resolve(p)));
   const classpath = [...libs, clientJar].join(sep);
   vars.classpath = classpath;
